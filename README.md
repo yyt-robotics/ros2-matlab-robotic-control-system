@@ -11,6 +11,8 @@ Two modes are supported:
 
 The system covers the full pipeline from task-level pose input to joint-level execution.
 
+![System Architecture](media/architecture.png)
+
 ---
 
 ## System Architecture
