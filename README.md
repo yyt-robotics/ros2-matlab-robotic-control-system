@@ -79,6 +79,7 @@ Web GUI -> ROS2 Action -> IK Solver -> Trajectory Generation -> /joint_ref -> HT
 │   └── gluon_6l3.urdf
 ├── .gitignore
 └── README.md
+```
 
 ## How to Run
 
