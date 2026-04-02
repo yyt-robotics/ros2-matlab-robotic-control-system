@@ -79,3 +79,28 @@ Web GUI -> ROS2 Action -> IK Solver -> Trajectory Generation -> /joint_ref -> HT
 │   └── gluon_6l3.urdf
 ├── .gitignore
 └── README.md
+
+## How to Run
+
+### ROS2
+
+cd ros2_ws  
+colcon build  
+source install/setup.bash  
+ros2 run robot_task_manager robot_task_manager  
+
+### Web GUI
+
+ros2 run robot_task_manager pose_web_gui  
+
+Open browser:
+
+http://localhost:8080  
+
+### MATLAB (offline)
+
+run('matlab/run_full_demo.m')
+
+## Technologies
+
+ROS2, Python, Flask, NumPy, SciPy, MATLAB/Simulink, URDF
