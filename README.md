@@ -1,5 +1,6 @@
-# ros2-matlab-robotic-control-system
-ROS2-based robotic control system with trajectory planning and MATLAB/Simulink integration
+:::writing{variant=“standard” id=“readme1”}
+
+ROS2-Based Robotic Task Execution System with MATLAB Integration
 
 📌 Overview
 
@@ -11,8 +12,14 @@ The system supports both:
 
 It demonstrates a full pipeline from high-level task commands to low-level joint control and dynamic simulation.
 
+⸻
+
 🧠 System Architecture
+
 Web GUI → ROS2 Action → IK Solver → Trajectory Generation → /joint_ref → HTTP Bridge → MATLAB/Simulink PID → Robot Simulation
+
+
+⸻
 
 ⚙️ Key Features
 
@@ -46,10 +53,14 @@ Web GUI → ROS2 Action → IK Solver → Trajectory Generation → /joint_ref �
 	•	MATLAB batch simulation (run_full_demo.m)
 	•	Tracking and error visualization
 
+⸻
+
 📊 Performance
 	•	Joint tracking error: ~10⁻³ rad level
 	•	Stable closed-loop response
 	•	Smooth motion via velocity-constrained planning
+
+⸻
 
 🖥️ Demo
 
@@ -64,7 +75,10 @@ Web GUI → ROS2 Action → IK Solver → Trajectory Generation → /joint_ref �
 	•	Immediate robot response
 	•	Workspace validation feedback
 
+⸻
+
 📁 Project Structure
+
 .
 ├── matlab/
 │   ├── run_full_demo.m
@@ -82,20 +96,37 @@ Web GUI → ROS2 Action → IK Solver → Trajectory Generation → /joint_ref �
 │
 └── README.md
 
+
+⸻
+
 🚀 How to Run
+
 1. ROS2 (Task Execution)
-  cd ros2_ws
-  colcon build
-  source install/setup.bash
-  ros2 run robot_task_manager robot_task_manager
+
+cd ros2_ws
+colcon build
+source install/setup.bash
+ros2 run robot_task_manager robot_task_manager
+
 2. Web GUI
-   ros2 run robot_task_manager pose_web_gui
-   Open browser: http://localhost:8080
+
+ros2 run robot_task_manager pose_web_gui
+
+Open browser:
+
+http://localhost:8080
+
 3. MATLAB Simulation
-   Offline mode: run('matlab/run_full_demo.m')
-   Real-time mode:
-   •	Simulink reads joint references via HTTP
-	 •	PID controller tracks reference
+
+Offline mode:
+
+run('matlab/run_full_demo.m')
+
+Real-time mode:
+	•	Simulink reads joint references via HTTP
+	•	PID controller tracks reference
+
+⸻
 
 🧩 Technologies Used
 	•	ROS2 (rclpy, Action interface)
@@ -104,6 +135,8 @@ Web GUI → ROS2 Action → IK Solver → Trajectory Generation → /joint_ref �
 	•	Simscape Multibody
 	•	Robotics Kinematics
 
+⸻
+
 💡 Engineering Highlights
 	•	Modular system design (ROS2 + MATLAB decoupling)
 	•	Asynchronous task execution with feedback
@@ -111,11 +144,15 @@ Web GUI → ROS2 Action → IK Solver → Trajectory Generation → /joint_ref �
 	•	Velocity-constrained trajectory planning
 	•	End-to-end pipeline from UI → control → simulation
 
+⸻
+
 📎 Future Work
 	•	RViz / Gazebo integration
 	•	Motion planning (MoveIt)
 	•	Hardware deployment
 	•	Sensor feedback integration
+
+⸻
 
 🧑‍💻 Author
 
