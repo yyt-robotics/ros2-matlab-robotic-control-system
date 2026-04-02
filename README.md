@@ -49,6 +49,14 @@ Tested with:
 3. MATLAB runs simulation (`run_full_demo.m`)  
 4. Tracking and error plots are generated  
 
+### Offline Simulation Result
+
+![Tracking](media/tracking.png)
+
+### Error Plot
+
+![Error](media/error.png)
+
 ### Real-Time Mode
 1. Adjust pose via GUI sliders  
 2. ROS2 computes IK and publishes joint references  
