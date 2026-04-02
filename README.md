@@ -1,161 +1,81 @@
-:::writing{variant=“standard” id=“readme1”}
+# ROS2-Based Robotic Task Execution System with MATLAB Integration
 
-ROS2-Based Robotic Task Execution System with MATLAB Integration
+## Overview
 
-📌 Overview
+This project implements a robotic control pipeline combining ROS2, inverse kinematics, trajectory planning, and MATLAB/Simulink simulation for a 6-DOF manipulator.
 
-This project implements a modular robotic control system that integrates ROS2, inverse kinematics, trajectory planning, and MATLAB/Simulink-based closed-loop control.
+Two modes are supported:
 
-The system supports both:
-	•	Offline trajectory execution (CSV-based)
-	•	Real-time interactive control via Web GUI
+- Offline mode: trajectory generation (CSV) + MATLAB simulation
+- Real-time mode: interactive control via web GUI
 
-It demonstrates a full pipeline from high-level task commands to low-level joint control and dynamic simulation.
+The system covers the full pipeline from task-level pose input to joint-level execution.
 
-⸻
+---
 
-🧠 System Architecture
+## System Architecture
 
-Web GUI → ROS2 Action → IK Solver → Trajectory Generation → /joint_ref → HTTP Bridge → MATLAB/Simulink PID → Robot Simulation
+Web GUI -> ROS2 Action -> IK Solver -> Trajectory Generation -> /joint_ref -> HTTP Bridge -> MATLAB/Simulink -> Robot Simulation
 
+---
 
-⸻
+## Key Features
 
-⚙️ Key Features
+- ROS2 action-based task execution (`MoveToPose`)
+- Custom IK solver (least-squares, multi-initial guess)
+- Velocity-constrained joint trajectory generation
+- Flask-based web GUI for pose control
+- MATLAB/Simulink closed-loop simulation
+- CSV-based offline trajectory replay and evaluation
 
-🔹 ROS2 Task Execution Framework
-	•	Action-based asynchronous control (MoveToPose)
-	•	Feedback and cancellation support
-	•	State management (idle / busy / completed)
+---
 
-🔹 Inverse Kinematics (IK)
-	•	Custom numerical IK solver (least squares)
-	•	Multi-initial guess strategy for robustness
-	•	Joint limit handling and workspace validation
+## Demo
 
-🔹 Trajectory Planning
-	•	Joint-space trajectory generation
-	•	Velocity-constrained motion planning
-	•	Adaptive timing based on joint displacement
+### Offline Mode
+1. Send target pose via GUI  
+2. ROS2 generates joint trajectory (CSV)  
+3. MATLAB runs simulation (`run_full_demo.m`)  
+4. Tracking and error plots are generated  
 
-🔹 Real-Time Control Interface
-	•	Web-based GUI (Flask)
-	•	Interactive pose control via sliders
-	•	Immediate robot response using ROS2 Action
+### Real-Time Mode
+1. Adjust pose via GUI sliders  
+2. ROS2 computes IK and publishes joint references  
+3. MATLAB reads reference via HTTP  
+4. Robot responds in real time  
 
-🔹 MATLAB / Simulink Integration
-	•	HTTP-based data bridge (webread)
-	•	6-DOF PID control loop
-	•	Simscape Multibody robot simulation
+---
 
-🔹 Offline Simulation Pipeline
-	•	CSV trajectory export from ROS2
-	•	MATLAB batch simulation (run_full_demo.m)
-	•	Tracking and error visualization
+## Project Structure
 
-⸻
-
-📊 Performance
-	•	Joint tracking error: ~10⁻³ rad level
-	•	Stable closed-loop response
-	•	Smooth motion via velocity-constrained planning
-
-⸻
-
-🖥️ Demo
-
-🎬 Offline Mode
-	•	Send target pose via GUI
-	•	ROS2 generates trajectory (CSV)
-	•	MATLAB runs simulation
-	•	Outputs tracking + error plots
-
-⚡ Real-Time Mode
-	•	Interactive slider control
-	•	Immediate robot response
-	•	Workspace validation feedback
-
-⸻
-
-📁 Project Structure
-
+```text
 .
 ├── matlab/
-│   ├── run_full_demo.m
 │   ├── get_joint_ref_http.m
 │   ├── pid_control.slx
+│   ├── run_full_demo.m
 │   └── trajectory/
 │       └── .gitkeep
-│
 ├── ros2_ws/
-│   ├── robot_task_manager/
-│   └── robot_interfaces/
-│
+│   ├── robot_interfaces/
+│   │   ├── CMakeLists.txt
+│   │   ├── action/
+│   │   │   └── MoveToPose.action
+│   │   └── package.xml
+│   └── robot_task_manager/
+│       ├── package.xml
+│       ├── resource/
+│       │   └── robot_task_manager
+│       ├── robot_task_manager/
+│       │   ├── __init__.py
+│       │   ├── ik_solver_opt.py
+│       │   ├── joint_ref_bridge.py
+│       │   ├── joint_state_publisher_node.py
+│       │   ├── pose_web_gui.py
+│       │   └── robot_task_manager.py
+│       ├── setup.cfg
+│       └── setup.py
 ├── urdf/
 │   └── gluon_6l3.urdf
-│
+├── .gitignore
 └── README.md
-
-
-⸻
-
-🚀 How to Run
-
-1. ROS2 (Task Execution)
-
-cd ros2_ws
-colcon build
-source install/setup.bash
-ros2 run robot_task_manager robot_task_manager
-
-2. Web GUI
-
-ros2 run robot_task_manager pose_web_gui
-
-Open browser:
-
-http://localhost:8080
-
-3. MATLAB Simulation
-
-Offline mode:
-
-run('matlab/run_full_demo.m')
-
-Real-time mode:
-	•	Simulink reads joint references via HTTP
-	•	PID controller tracks reference
-
-⸻
-
-🧩 Technologies Used
-	•	ROS2 (rclpy, Action interface)
-	•	Python (Flask, NumPy, SciPy)
-	•	MATLAB / Simulink
-	•	Simscape Multibody
-	•	Robotics Kinematics
-
-⸻
-
-💡 Engineering Highlights
-	•	Modular system design (ROS2 + MATLAB decoupling)
-	•	Asynchronous task execution with feedback
-	•	Real-time and offline dual-mode control
-	•	Velocity-constrained trajectory planning
-	•	End-to-end pipeline from UI → control → simulation
-
-⸻
-
-📎 Future Work
-	•	RViz / Gazebo integration
-	•	Motion planning (MoveIt)
-	•	Hardware deployment
-	•	Sensor feedback integration
-
-⸻
-
-🧑‍💻 Author
-
-Yantong Yang
-Robotic Systems Engineering, RWTH Aachen University
-:::
