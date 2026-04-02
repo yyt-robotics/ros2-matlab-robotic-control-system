@@ -30,6 +30,17 @@ Web GUI -> ROS2 Action -> IK Solver -> Trajectory Generation -> /joint_ref -> HT
 
 ---
 
+## Environment
+
+Tested with:
+- ROS2 Jazzy
+- Python 3.12
+- MATLAB/Simulink
+- Simscape Multibody
+- NumPy / SciPy / Flask
+
+---
+
 ## Demo
 
 ### Offline Mode
