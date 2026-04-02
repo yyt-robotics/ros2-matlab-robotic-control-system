@@ -1,0 +1,342 @@
+import threading
+import time
+
+from flask import Flask, request, render_template_string
+import rclpy
+from rclpy.action import ActionClient
+from rclpy.node import Node
+
+from robot_interfaces.action import MoveToPose
+
+HTML_PAGE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>6-DOF Robot Task Execution GUI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            max-width: 900px;
+        }
+        .row {
+            margin-bottom: 14px;
+        }
+        label {
+            display: inline-block;
+            width: 80px;
+            font-weight: bold;
+        }
+        input[type=range] {
+            width: 320px;
+            vertical-align: middle;
+        }
+        .val {
+            display: inline-block;
+            width: 90px;
+            text-align: right;
+            margin-left: 10px;
+            color: #333;
+        }
+        button {
+            padding: 8px 16px;
+            margin-top: 10px;
+            margin-right: 10px;
+        }
+        .log {
+            margin-top: 20px;
+            padding: 12px;
+            border: 1px solid #ccc;
+            background: #f7f7f7;
+            white-space: pre-wrap;
+            min-height: 220px;
+        }
+        .status {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+        .status.ok {
+            background: #e8f5e9;
+            color: #1b5e20;
+            border: 1px solid #a5d6a7;
+        }
+        .status.fail {
+            background: #ffebee;
+            color: #b71c1c;
+            border: 1px solid #ef9a9a;
+        }
+        .status.info {
+            background: #e3f2fd;
+            color: #0d47a1;
+            border: 1px solid #90caf9;
+        }
+    </style>
+    <script>
+        function bindSlider(name) {
+            const slider = document.getElementById(name);
+            const output = document.getElementById(name + "_val");
+            output.textContent = slider.value;
+            slider.oninput = function() {
+                output.textContent = this.value;
+            }
+        }
+
+        window.onload = function() {
+            ["x","y","z","roll","pitch","yaw"].forEach(bindSlider);
+        }
+    </script>
+</head>
+<body>
+    <h2>6-DOF Robot Task Execution GUI</h2>
+
+    <form method="post" action="/send_goal">
+        <div class="row">
+            <label>x</label>
+            <input type="range" id="x" name="x" min="-0.409" max="0.409" step="0.001" value="{{ x }}">
+            <span class="val" id="x_val">{{ x }}</span>
+        </div>
+
+        <div class="row">
+            <label>y</label>
+            <input type="range" id="y" name="y" min="-0.429" max="0.429" step="0.001" value="{{ y }}">
+            <span class="val" id="y_val">{{ y }}</span>
+        </div>
+
+        <div class="row">
+            <label>z</label>
+            <input type="range" id="z" name="z" min="-0.297" max="0.297" step="0.001" value="{{ z }}">
+            <span class="val" id="z_val">{{ z }}</span>
+        </div>
+
+        <div class="row">
+            <label>roll</label>
+            <input type="range" id="roll" name="roll" min="-3.14" max="3.14" step="0.01" value="{{ roll }}">
+            <span class="val" id="roll_val">{{ roll }}</span>
+        </div>
+
+        <div class="row">
+            <label>pitch</label>
+            <input type="range" id="pitch" name="pitch" min="-3.14" max="3.14" step="0.01" value="{{ pitch }}">
+            <span class="val" id="pitch_val">{{ pitch }}</span>
+        </div>
+
+        <div class="row">
+            <label>yaw</label>
+            <input type="range" id="yaw" name="yaw" min="-3.14" max="3.14" step="0.01" value="{{ yaw }}">
+            <span class="val" id="yaw_val">{{ yaw }}</span>
+        </div>
+
+        <button type="submit">Send Goal</button>
+    </form>
+
+    <form method="post" action="/cancel_goal">
+        <button type="submit">Cancel Goal</button>
+    </form>
+
+    {% if status_text %}
+    <div class="status {{ status_class }}">{{ status_text }}</div>
+    {% endif %}
+
+    <div class="log">{{ log_text }}</div>
+</body>
+</html>
+"""
+
+class WebActionClient(Node):
+    def __init__(self):
+        super().__init__('pose_web_gui_client')
+
+        self._action_client = ActionClient(
+            self,
+            MoveToPose,
+            'execute_task'
+        )
+
+        self._goal_handle = None
+        self._send_goal_future = None
+        self._get_result_future = None
+
+        self.logs = []
+        self._lock = threading.Lock()
+
+        self.last_status_text = 'Web GUI started.'
+        self.last_status_class = 'info'
+
+    def append_log(self, msg):
+        with self._lock:
+            timestamp = time.strftime('%H:%M:%S')
+            self.logs.append(f'[{timestamp}] {msg}')
+            self.logs = self.logs[-100:]
+
+    def get_logs(self):
+        with self._lock:
+            return '\n'.join(self.logs)
+
+    def set_status(self, text, css_class='info'):
+        with self._lock:
+            self.last_status_text = text
+            self.last_status_class = css_class
+
+    def get_status(self):
+        with self._lock:
+            return self.last_status_text, self.last_status_class
+
+    def send_goal(self, x, y, z, roll, pitch, yaw):
+        goal_msg = MoveToPose.Goal()
+        goal_msg.x = x
+        goal_msg.y = y
+        goal_msg.z = z
+        goal_msg.roll = roll
+        goal_msg.pitch = pitch
+        goal_msg.yaw = yaw
+
+        self.append_log(
+            f'Sending goal: x={x:.3f}, y={y:.3f}, z={z:.3f}, '
+            f'roll={roll:.3f}, pitch={pitch:.3f}, yaw={yaw:.3f}'
+        )
+        self.set_status('Sending goal...', 'info')
+
+        if not self._action_client.wait_for_server(timeout_sec=5.0):
+            self.append_log('Action server not available.')
+            self.set_status('Action server not available.', 'fail')
+            return
+
+        self._send_goal_future = self._action_client.send_goal_async(
+            goal_msg,
+            feedback_callback=self.feedback_callback
+        )
+        self._send_goal_future.add_done_callback(self.goal_response_callback)
+
+    def goal_response_callback(self, future):
+        goal_handle = future.result()
+
+        if not goal_handle.accepted:
+            self.append_log('Goal rejected')
+            self.set_status('Goal rejected.', 'fail')
+            return
+
+        self.append_log('Goal accepted')
+        self.set_status('Goal accepted. Waiting for execution result...', 'info')
+        self._goal_handle = goal_handle
+
+        self._get_result_future = goal_handle.get_result_async()
+        self._get_result_future.add_done_callback(self.get_result_callback)
+
+    def feedback_callback(self, feedback_msg):
+        feedback = feedback_msg.feedback
+        self.append_log(
+            f'Feedback: step {feedback.current_step}/{feedback.total_steps}, '
+            f'current_joints={list(feedback.current_joints)}'
+        )
+
+    def get_result_callback(self, future):
+        result_wrap = future.result()
+        result = result_wrap.result
+        status = result_wrap.status
+
+        self.append_log(
+            f'Result: success={result.success}, '
+            f'final_joints={list(result.final_joints)}, '
+            f'message="{result.message}"'
+        )
+        self.append_log(f'Final status: {status}')
+
+        if result.success:
+            self.set_status(f'Success: {result.message}', 'ok')
+        else:
+            self.set_status(f'Failed: {result.message}', 'fail')
+
+    def cancel_goal(self):
+        if self._goal_handle is None:
+            self.append_log('No active goal to cancel.')
+            self.set_status('No active goal to cancel.', 'fail')
+            return
+
+        self.append_log('Canceling goal...')
+        self.set_status('Canceling goal...', 'info')
+        cancel_future = self._goal_handle.cancel_goal_async()
+        cancel_future.add_done_callback(self.cancel_done_callback)
+
+    def cancel_done_callback(self, future):
+        try:
+            cancel_response = future.result()
+            self.append_log(f'Cancel response: {cancel_response}')
+            self.set_status('Cancel request sent.', 'info')
+        except Exception as e:
+            self.append_log(f'Cancel failed: {e}')
+            self.set_status(f'Cancel failed: {e}', 'fail')
+
+
+rclpy.init()
+ros_node = WebActionClient()
+
+
+def ros_spin():
+    rclpy.spin(ros_node)
+
+
+ros_thread = threading.Thread(target=ros_spin, daemon=True)
+ros_thread.start()
+
+app = Flask(__name__)
+
+
+def render_page(x='0.10', y='0.10', z='0.10', roll='0.0', pitch='0.0', yaw='0.0'):
+    status_text, status_class = ros_node.get_status()
+    return render_template_string(
+        HTML_PAGE,
+        log_text=ros_node.get_logs(),
+        status_text=status_text,
+        status_class=status_class,
+        x=x, y=y, z=z, roll=roll, pitch=pitch, yaw=yaw
+    )
+
+
+@app.route('/', methods=['GET'])
+def index():
+    return render_page()
+
+
+@app.route('/send_goal', methods=['POST'])
+def send_goal():
+    x_raw = request.form.get('x', '0.4')
+    y_raw = request.form.get('y', '0.2')
+    z_raw = request.form.get('z', '0.5')
+    roll_raw = request.form.get('roll', '0.0')
+    pitch_raw = request.form.get('pitch', '0.0')
+    yaw_raw = request.form.get('yaw', '0.0')
+
+    try:
+        x = float(x_raw)
+        y = float(y_raw)
+        z = float(z_raw)
+        roll = float(roll_raw)
+        pitch = float(pitch_raw)
+        yaw = float(yaw_raw)
+
+        ros_node.send_goal(x, y, z, roll, pitch, yaw)
+
+    except Exception as e:
+        ros_node.append_log(f'Input error: {e}')
+        ros_node.set_status(f'Input error: {e}', 'fail')
+
+    return render_page(x_raw, y_raw, z_raw, roll_raw, pitch_raw, yaw_raw)
+
+
+@app.route('/cancel_goal', methods=['POST'])
+def cancel_goal():
+    ros_node.cancel_goal()
+    return render_page()
+
+
+def main():
+    ros_node.append_log('Web GUI started.')
+    ros_node.set_status('Web GUI started.', 'info')
+    app.run(host='0.0.0.0', port=8080, debug=False)
+
+
+if __name__ == '__main__':
+    main()
