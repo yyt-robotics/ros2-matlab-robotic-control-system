@@ -1,6 +1,6 @@
 # ROS2-Based Robotic Task Execution System with MATLAB Integration
 
-## 🚀 Highlights
+## Highlights
 
 - End-to-end robotic control pipeline from task-level command to joint-level execution  
 - ROS2 Action-based asynchronous task execution  
@@ -23,15 +23,15 @@ The system covers the full pipeline from task-level pose input to joint-level ex
 
 ---
 
-## 🎥 Demo Videos
+## Demo Videos
 
 This project supports both offline trajectory simulation and real-time robotic control.  
 See the demonstrations below:
 
-### 🔹 Offline Mode (Trajectory Generation + MATLAB Simulation)
+### Offline Mode (Trajectory Generation + MATLAB Simulation)
 [![Offline Demo](https://img.youtube.com/vi/54vFBiX_kls/0.jpg)](https://youtu.be/54vFBiX_kls)
 
-### 🔹 Real-Time Mode (ROS2 + Web GUI + MATLAB Integration)
+### Real-Time Mode (ROS2 + Web GUI + MATLAB Integration)
 [![Realtime Demo](https://img.youtube.com/vi/jeSNi3DXFD4/0.jpg)](https://youtu.be/jeSNi3DXFD4)
 
 ---
