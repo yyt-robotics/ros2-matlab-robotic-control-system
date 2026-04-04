@@ -28,6 +28,8 @@ The system covers the full pipeline from task-level pose input to joint-level ex
 This project supports both offline trajectory simulation and real-time robotic control.  
 See the demonstrations below:
 
+Click the thumbnails to watch full demo videos on YouTube
+
 ### Offline Mode (Trajectory Generation + MATLAB Simulation)
 [![Offline Demo](https://img.youtube.com/vi/54vFBiX_kls/0.jpg)](https://youtu.be/54vFBiX_kls)
 
