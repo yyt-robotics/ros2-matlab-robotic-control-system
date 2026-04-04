@@ -1,5 +1,13 @@
 # ROS2-Based Robotic Task Execution System with MATLAB Integration
 
+## 🚀 Highlights
+
+- End-to-end robotic control pipeline from task-level command to joint-level execution  
+- ROS2 Action-based asynchronous task execution  
+- Custom inverse kinematics solver with velocity-constrained trajectory generation  
+- Real-time integration with MATLAB/Simulink via HTTP communication  
+- Achieved ~10⁻³ rad tracking accuracy in closed-loop simulation  
+
 ## Overview
 
 This project implements a robotic control pipeline combining ROS2, inverse kinematics, trajectory planning, and MATLAB/Simulink simulation for a 6-DOF manipulator.
@@ -12,6 +20,19 @@ Two modes are supported:
 The system covers the full pipeline from task-level pose input to joint-level execution.
 
 ![System Architecture](media/architecture.png)
+
+---
+
+## 🎥 Demo Videos
+
+This project supports both offline trajectory simulation and real-time robotic control.  
+See the demonstrations below:
+
+### 🔹 Offline Mode (Trajectory Generation + MATLAB Simulation)
+[![Offline Demo](https://img.youtube.com/vi/54vFBiX_kls/0.jpg)](https://youtu.be/54vFBiX_kls)
+
+### 🔹 Real-Time Mode (ROS2 + Web GUI + MATLAB Integration)
+[![Realtime Demo](https://img.youtube.com/vi/jeSNi3DXFD4/0.jpg)](https://youtu.be/jeSNi3DXFD4)
 
 ---
 
@@ -122,6 +143,12 @@ http://localhost:8080
 ### MATLAB (offline)
 
 run('matlab/run_full_demo.m')
+
+### Requirements
+
+- ROS2 Jazzy installed
+- Python 3.10+
+- MATLAB with Simulink + Simscape Multibody
 
 ## Technologies
 
