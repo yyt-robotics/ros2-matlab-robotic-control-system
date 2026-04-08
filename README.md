@@ -1,5 +1,18 @@
 # ROS2-Based Robotic Task Execution System with MATLAB Integration
 
+## 🎯 Why This Project Matters
+
+This project reflects a real-world robotics software architecture where high-level task commands are translated into low-level control signals.
+
+It demonstrates key industry-relevant skills:
+- Integration of heterogeneous systems (ROS2 + MATLAB)
+- Real-time control pipeline design
+- Modular and scalable robotics software architecture
+
+Such systems are widely used in industrial robotics, autonomous systems, and intelligent automation.
+
+---
+
 ## Highlights
 
 - End-to-end robotic control pipeline from task-level command to joint-level execution  
