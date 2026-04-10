@@ -170,12 +170,167 @@ source install/setup.bash
 ### 3. Minimal System Check (Recommended)
 
 Before running the full system, verify that the HTTP bridge works:
+
+```bash
 ros2 run robot_task_manager joint_ref_bridge
+```
+
 Open in browser:
+
+```code
 http://localhost:5002/joint_ref
+```
+
 Expected output:
+
+```code
 [0.0, 0.0, 0.0, ...]
+```
+
 If this works, the ROS2–MATLAB communication layer is ready.
 
 ---
 
+## Real-time Mode (Recommended)
+
+### Terminal 1 — Task Manager
+
+```bash
+cd ros2_ws
+source install/setup.bash
+ros2 run robot_task_manager robot_task_manager
+```
+
+### Terminal 2 — Web GUI
+
+```bash
+cd ros2_ws
+source install/setup.bash
+ros2 run robot_task_manager pose_web_gui
+```
+
+### Terminal 3 — HTTP Bridge
+
+```bash
+cd ros2_ws
+source install/setup.bash
+ros2 run robot_task_manager joint_ref_bridge
+```
+
+### Browser
+
+Open:
+
+```code
+http://localhost:8080
+```
+
+Use sliders to adjust target pose (XYZ / RPY), then click Send Goal
+
+### MATLAB Side
+
+1. Open:
+
+```code
+matlab/pid_control.slx
+```
+
+3. Set:
+	•	Stop time = inf
+4. Run the model
+MATLAB reads real-time joint references using:
+
+```matlab
+webread('http://localhost:5002/joint_ref')
+```
+
+---
+
+## Offline Mode
+
+### Step 1 — Generate trajectory (ROS2)
+
+```bash
+cd ros2_ws
+source install/setup.bash
+ros2 run robot_task_manager robot_task_manager
+ros2 run robot_task_manager pose_web_gui
+```
+
+Open browser:
+
+```code
+http://localhost:8080
+```
+
+Send a target pose.
+
+This will generate:
+
+```code
+matlab/trajectory/trajectory_log_6dof.csv
+```
+
+### Step 2 — Run MATLAB Simulation
+
+In MATLAB:
+
+```matlab
+run('matlab/run_full_demo.m')
+```
+
+The system will replay the trajectory and generate tracking and error plots.
+
+---
+
+## Alternative Verification (No MATLAB Required)
+
+You can verify system output without MATLAB:
+
+```bash
+curl http://localhost:5002/joint_ref
+```
+
+or
+
+```bash
+ros2 topic echo /joint_ref
+```
+
+---
+
+## Common Issues
+
+### Missing Python dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### HTTP bridge not responding
+
+Make sure the bridge is running:
+
+```bash
+ros2 run robot_task_manager joint_ref_bridge
+```
+
+### Web GUI not accessible
+
+Check:
+
+```code
+http://localhost:8080
+```
+
+### CSV file not found (Offline Mode)
+
+Make sure you have sent a goal via the GUI before running MATLAB.
+
+---
+
+## Notes
+
+	•	ROS2 runs inside a Docker container
+	•	MATLAB runs on the host machine
+	•	Communication is implemented via HTTP (Flask-based bridge)
