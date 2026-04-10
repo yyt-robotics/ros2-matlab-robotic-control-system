@@ -2,14 +2,9 @@
 
 ## Why This Project Matters
 
-This project reflects a real-world robotics software architecture where high-level task commands are translated into low-level control signals.
+This project demonstrates a complete robotic software pipeline where high-level task commands are translated into low-level joint control.
 
-It demonstrates key industry-relevant skills:
-- Integration of heterogeneous systems (ROS2 + MATLAB)
-- Real-time control pipeline design
-- Modular and scalable robotics software architecture
-
-Such systems are widely used in industrial robotics, autonomous systems, and intelligent automation.
+It focuses on system integration, real-time execution, and modular architecture, which are essential in modern robotics systems.
 
 ---
 
@@ -25,10 +20,7 @@ Such systems are widely used in industrial robotics, autonomous systems, and int
 
 This project implements a robotic control pipeline combining ROS2, inverse kinematics, trajectory planning, and MATLAB/Simulink simulation for a 6-DOF manipulator.
 
-Two modes are supported:
-
-- Offline mode: trajectory generation (CSV) + MATLAB simulation
-- Real-time mode: interactive control via web GUI
+It supports both offline trajectory simulation and real-time interactive control.
 
 The system covers the full pipeline from task-level pose input to joint-level execution.
 
@@ -38,7 +30,6 @@ The system covers the full pipeline from task-level pose input to joint-level ex
 
 ## Demo Videos
 
-This project supports both offline trajectory simulation and real-time robotic control.  
 See the demonstrations below:
 
 Click the thumbnails to watch full demo videos on YouTube
@@ -48,12 +39,6 @@ Click the thumbnails to watch full demo videos on YouTube
 
 ### Real-Time Mode (ROS2 + Web GUI + MATLAB Integration)
 [![Realtime Demo](https://img.youtube.com/vi/jeSNi3DXFD4/0.jpg)](https://youtu.be/jeSNi3DXFD4)
-
----
-
-## System Architecture
-
-Web GUI -> ROS2 Action -> IK Solver -> Trajectory Generation -> /joint_ref -> HTTP Bridge -> MATLAB/Simulink -> Robot Simulation
 
 ---
 
@@ -68,7 +53,7 @@ Web GUI -> ROS2 Action -> IK Solver -> Trajectory Generation -> /joint_ref -> HT
 
 ---
 
-## Environment
+## Tested Environment
 
 Tested with:
 - ROS2 Jazzy
@@ -79,7 +64,7 @@ Tested with:
 
 ---
 
-## Demo
+## Execution Flow
 
 ### Offline Mode
 1. Send target pose via GUI  
