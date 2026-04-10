@@ -1,10 +1,15 @@
 # ROS2-Based Robotic Task Execution System with MATLAB Integration
 
+A ROS2-based robotic control system that bridges high-level task planning and low-level joint control, with real-time MATLAB/Simulink integration.
+
 ## Why This Project Matters
 
-This project demonstrates a complete robotic software pipeline where high-level task commands are translated into low-level joint control.
+This project implements a complete robotic control pipeline from task-level commands to joint-level execution.
 
-It focuses on system integration, real-time execution, and modular architecture, which are essential in modern robotics systems.
+It focuses on:
+- System integration (ROS2 + MATLAB)
+- Real-time control pipeline
+- Modular robotics architecture
 
 ---
 
@@ -159,6 +164,8 @@ cd /root/ros2_study/workspace/ros2_ws
 colcon build
 source install/setup.bash
 ```
+
+After setup, follow the instructions in the Real-time or Offline sections below.
 
 ---
 
