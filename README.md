@@ -1,6 +1,38 @@
+![ROS2](https://img.shields.io/badge/ROS2-Jazzy-blue)
+![MATLAB](https://img.shields.io/badge/MATLAB-Simulink-orange)
+![Docker](https://img.shields.io/badge/Docker-Ready-blue)
+
 # ROS2-Based Robotic Task Execution System with MATLAB Integration
 
 A ROS2-based robotic control system that bridges high-level task planning and low-level joint control, with real-time MATLAB/Simulink integration.
+
+## Demo (Real-Time + Offline)
+
+The system supports both real-time control and offline trajectory simulation:
+
+- **Real-time mode**: interactive control via Web GUI with live MATLAB response  
+- **Offline mode**: trajectory generation and replay with tracking analysis  
+
+Click the thumbnails to watch full demo videos:
+
+### Offline Mode (Trajectory Generation + MATLAB Simulation)
+[![Offline Demo](https://img.youtube.com/vi/54vFBiX_kls/0.jpg)](https://youtu.be/54vFBiX_kls)
+
+### Real-Time Mode (ROS2 + Web GUI + MATLAB Integration)
+[![Realtime Demo](https://img.youtube.com/vi/jeSNi3DXFD4/0.jpg)](https://youtu.be/jeSNi3DXFD4)
+
+## Highlights
+
+- ROS2 Action-based asynchronous task execution  
+- Custom inverse kinematics solver with velocity-constrained trajectory generation  
+- Real-time ROS2 ↔ MATLAB/Simulink integration via HTTP bridge
+- Achieved ~10⁻³ rad tracking accuracy in closed-loop simulation
+
+---
+
+## Technical Details (For Engineers)
+
+The following sections describe system architecture, execution flow, and reproducibility in detail.
 
 ## Why This Project Matters
 
@@ -11,16 +43,6 @@ It focuses on:
 - Real-time control pipeline
 - Modular robotics architecture
 
----
-
-## Highlights
-
-- End-to-end robotic control pipeline from task-level command to joint-level execution  
-- ROS2 Action-based asynchronous task execution  
-- Custom inverse kinematics solver with velocity-constrained trajectory generation  
-- Real-time integration with MATLAB/Simulink via HTTP communication  
-- Achieved ~10⁻³ rad tracking accuracy in closed-loop simulation  
-
 ## Overview
 
 This project implements a robotic control pipeline combining ROS2, inverse kinematics, trajectory planning, and MATLAB/Simulink simulation for a 6-DOF manipulator.
@@ -30,20 +52,6 @@ It supports both offline trajectory simulation and real-time interactive control
 The system covers the full pipeline from task-level pose input to joint-level execution.
 
 ![System Architecture](media/architecture.png)
-
----
-
-## Demo Videos
-
-See the demonstrations below:
-
-Click the thumbnails to watch full demo videos on YouTube
-
-### Offline Mode (Trajectory Generation + MATLAB Simulation)
-[![Offline Demo](https://img.youtube.com/vi/54vFBiX_kls/0.jpg)](https://youtu.be/54vFBiX_kls)
-
-### Real-Time Mode (ROS2 + Web GUI + MATLAB Integration)
-[![Realtime Demo](https://img.youtube.com/vi/jeSNi3DXFD4/0.jpg)](https://youtu.be/jeSNi3DXFD4)
 
 ---
 
@@ -70,6 +78,9 @@ Tested with:
 ---
 
 ## Execution Flow
+
+The system operates in two modes: offline trajectory simulation and real-time control.
+The pipelines below illustrate how data flows through each mode.
 
 ### Offline Mode
 
