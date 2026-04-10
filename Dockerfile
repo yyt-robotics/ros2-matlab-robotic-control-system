@@ -43,7 +43,7 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
 
 # Convenience: auto-source ROS and workspace in interactive shell
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /root/.bashrc && \
-    echo "source /root/ros2_study/workspace/install/setup.bash" >> /root/.bashrc
+    echo "source /root/ros2_study/workspace/ros2_ws/install/setup.bash" >> /root/.bashrc
 
 WORKDIR /root/ros2_study/workspace
 
