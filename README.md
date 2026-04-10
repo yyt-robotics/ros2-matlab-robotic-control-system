@@ -177,13 +177,13 @@ ros2 run robot_task_manager joint_ref_bridge
 
 Open in browser:
 
-```code
+```
 http://localhost:5002/joint_ref
 ```
 
 Expected output:
 
-```code
+```
 [0.0, 0.0, 0.0, ...]
 ```
 
@@ -221,7 +221,7 @@ ros2 run robot_task_manager joint_ref_bridge
 
 Open:
 
-```code
+```
 http://localhost:8080
 ```
 
@@ -231,13 +231,14 @@ Use sliders to adjust target pose (XYZ / RPY), then click Send Goal
 
 1. Open:
 
-```code
+```
 matlab/pid_control.slx
 ```
 
-3. Set:
-	•	Stop time = inf
-4. Run the model
+2. Set:
+Stop time = inf
+
+3. Run the model
 MATLAB reads real-time joint references using:
 
 ```matlab
@@ -259,7 +260,7 @@ ros2 run robot_task_manager pose_web_gui
 
 Open browser:
 
-```code
+```
 http://localhost:8080
 ```
 
@@ -267,7 +268,7 @@ Send a target pose.
 
 This will generate:
 
-```code
+```
 matlab/trajectory/trajectory_log_6dof.csv
 ```
 
@@ -331,6 +332,6 @@ Make sure you have sent a goal via the GUI before running MATLAB.
 
 ## Notes
 
-	•	ROS2 runs inside a Docker container
-	•	MATLAB runs on the host machine
-	•	Communication is implemented via HTTP (Flask-based bridge)
+ROS2 runs inside a Docker container
+MATLAB runs on the host machine
+Communication is implemented via HTTP (Flask-based bridge)
