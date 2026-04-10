@@ -59,10 +59,15 @@ class RobotTaskManager(Node):
         
         # CSV path for offline trajectory export
         # Can be overridden by environment variable TRAJECTORY_CSV_PATH
+        # Project root inside Docker container
+        project_root = "/root/ros2_study/workspace"
+        
+        # CSV path for offline trajectory export
         self.trajectory_file = os.environ.get(
-            'TRAJECTORY_CSV_PATH',
-            os.path.join('matlab', 'trajectory', 'trajectory_log_6dof.csv')
+            "TRAJECTORY_FILE",
+            os.path.join(project_root, "matlab", "trajectory", "trajectory_log_6dof.csv")
         )
+        
         os.makedirs(os.path.dirname(self.trajectory_file), exist_ok=True)
         self.get_logger().info(f'Offline trajectory CSV path: {self.trajectory_file}')
 
