@@ -1,7 +1,6 @@
 ![ROS2](https://img.shields.io/badge/ROS2-Jazzy-blue)
 ![MATLAB](https://img.shields.io/badge/MATLAB-Simulink-orange)
 ![Docker](https://img.shields.io/badge/Docker-Ready-blue)
-
 # ROS2-Based Robotic Task Execution System with MATLAB Integration
 
 A ROS2-based robotic control system that bridges high-level task planning and low-level joint control, with real-time MATLAB/Simulink integration.
