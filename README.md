@@ -205,7 +205,7 @@ source install/setup.bash
 
 ---
 
-### 3. Minimal System Check (Recommended)
+#### 3. Minimal System Check (Recommended)
 
 Before running the full system, verify that the HTTP bridge works:
 
