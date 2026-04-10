@@ -67,20 +67,26 @@ Tested with:
 ## Execution Flow
 
 ### Offline Mode
+
+#### Pipeline
+
 1. Send target pose via GUI  
 2. ROS2 generates joint trajectory (CSV)  
 3. MATLAB runs simulation (`run_full_demo.m`)  
 4. Tracking and error plots are generated  
 
-### Offline Simulation Result
+#### Simulation Result
 
 ![Tracking](media/tracking.png)
 
-### Error Plot
-
 ![Error](media/error.png)
 
+---
+
 ### Real-Time Mode
+
+#### Pipeline
+
 1. Adjust pose via GUI sliders  
 2. ROS2 computes IK and publishes joint references  
 3. MATLAB reads reference via HTTP  
@@ -182,33 +188,6 @@ source install/setup.bash
 
 ---
 
-This project supports two execution modes:
-
-- **Real-time Mode (Recommended)**: Interactive control via Web GUI + ROS2 + MATLAB  
-- **Offline Mode**: Trajectory generation (CSV) + MATLAB simulation  
-
----
-
-### 1. Install Dependencies
-
-From the project root:
-
-```bash
-pip install -r requirements.txt
-```
-
----
-
-### 2. Build ROS2 Workspace
-
-```bash
-cd ros2_ws
-colcon build
-source install/setup.bash
-```
-
----
-
 ### 3. Minimal System Check (Recommended)
 
 Before running the full system, verify that the HTTP bridge works:
@@ -296,6 +275,8 @@ webread('http://localhost:5002/joint_ref')
 
 ### Step 1 — Generate trajectory (ROS2)
 
+Run in separate terminals:
+
 ```bash
 cd ros2_ws
 source install/setup.bash
@@ -375,9 +356,15 @@ http://localhost:8080
 
 Make sure you have sent a goal via the GUI before running MATLAB.
 
+### CSV not visible on host (Docker users)
+
+Make sure the workspace is mounted when running the container:
+
+-v $(pwd):/root/ros2_study/workspace
+
 ---
 
-## Notes
+## System Notes
 
 - ROS2 runs inside a Docker container
 - MATLAB runs on the host machine
