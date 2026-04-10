@@ -140,31 +140,42 @@ Tested with:
 
 ## How to Run
 
-### ROS2
+This project supports two execution modes:
 
-cd ros2_ws  
-colcon build  
-source install/setup.bash  
-ros2 run robot_task_manager robot_task_manager  
+- **Real-time Mode (Recommended)**: Interactive control via Web GUI + ROS2 + MATLAB  
+- **Offline Mode**: Trajectory generation (CSV) + MATLAB simulation  
 
-### Web GUI
+---
 
-ros2 run robot_task_manager pose_web_gui  
+### 1. Install Dependencies
 
-Open browser:
+From the project root:
 
-http://localhost:8080  
+```bash
+pip install -r requirements.txt
+```
 
-### MATLAB (offline)
+---
 
-run('matlab/run_full_demo.m')
+### 2. Build ROS2 Workspace
 
-### Requirements
+```bash
+cd ros2_ws
+colcon build
+source install/setup.bash
+```
 
-- ROS2 Jazzy installed
-- Python 3.10+
-- MATLAB with Simulink + Simscape Multibody
+---
 
-## Technologies
+### 3. Minimal System Check (Recommended)
 
-ROS2, Python, Flask, NumPy, SciPy, MATLAB/Simulink, URDF
+Before running the full system, verify that the HTTP bridge works:
+ros2 run robot_task_manager joint_ref_bridge
+Open in browser:
+http://localhost:5002/joint_ref
+Expected output:
+[0.0, 0.0, 0.0, ...]
+If this works, the ROS2–MATLAB communication layer is ready.
+
+---
+
