@@ -140,6 +140,63 @@ Tested with:
 
 ## How to Run
 
+### Quick Start (Docker - Recommended)
+
+This project is designed to run using Docker for full reproducibility.
+
+#### 1. Build Docker Image
+
+```bash
+docker build -t ros2-matlab-robot-system .
+```
+
+#### 2. Run Container (with workspace mounted)
+
+```bash
+docker run -it --name ros2_robot_demo \
+  -p 8080:8080 \
+  -p 5002:5002 \
+  -v $(pwd):/root/ros2_study/workspace \
+  ros2-matlab-robot-system
+```
+
+#### 3. Inside Container
+
+```bash
+source /opt/ros/jazzy/setup.bash
+cd /root/ros2_study/workspace/ros2_ws
+colcon build
+source install/setup.bash
+```
+
+---
+
+### Manual Setup (Without Docker)
+
+This project also supports manual setup if Docker is not used.
+
+This project supports two execution modes:
+	•	Real-time Mode (Recommended): Interactive control via Web GUI + ROS2 + MATLAB
+	•	Offline Mode: Trajectory generation (CSV) + MATLAB simulation
+  
+#### 1. Install Dependencies
+
+From the project root:
+
+```bash
+pip install -r requirements.txt
+```
+
+#### 2. Build ROS2 Workspace
+
+```bash
+cd ros2_ws
+colcon build
+source install/setup.bash
+```
+
+---
+
 This project supports two execution modes:
 
 - **Real-time Mode (Recommended)**: Interactive control via Web GUI + ROS2 + MATLAB  
@@ -231,14 +288,17 @@ Use sliders to adjust target pose (XYZ / RPY), then click Send Goal
 
 1. Open:
 
-```
 matlab/pid_control.slx
-```
 
-2. Set:
-Stop time = inf
+2. Configure Simulink:
+
+- Solver type: `Fixed-step`
+- Solver: `ode4 (Runge-Kutta)`
+- Fixed-step size: `0.001`
+- Stop time: `inf`
 
 3. Run the model
+
 MATLAB reads real-time joint references using:
 
 ```matlab
@@ -271,6 +331,8 @@ This will generate:
 ```
 matlab/trajectory/trajectory_log_6dof.csv
 ```
+
+Make sure the Simulink solver settings match those described above.
 
 ### Step 2 — Run MATLAB Simulation
 
@@ -332,6 +394,7 @@ Make sure you have sent a goal via the GUI before running MATLAB.
 
 ## Notes
 
-ROS2 runs inside a Docker container
-MATLAB runs on the host machine
-Communication is implemented via HTTP (Flask-based bridge)
+- ROS2 runs inside a Docker container
+- MATLAB runs on the host machine
+- Communication is implemented via HTTP (Flask-based bridge)
+- For offline mode, the workspace is mounted to share trajectory CSV files
