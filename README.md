@@ -159,10 +159,10 @@ docker build -t ros2-matlab-robot-system .
 #### 2. Run Container (with workspace mounted)
 
 ```bash
-docker run -it --name ros2_robot_demo \
+docker run -it --name ros2_robot_demo_mounted \
   -p 8080:8080 \
   -p 5002:5002 \
-  -v $(pwd):/root/ros2_study/workspace \
+  -v ~/Desktop/RWTH-Learning/ros2-matlab-robotic-control-system-main:/root/ros2_study/workspace \
   ros2-matlab-robot-system
 ```
 
