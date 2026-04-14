@@ -140,8 +140,17 @@ The pipelines below illustrate how data flows through each mode.
 │       └── setup.py
 ├── urdf/
 │   └── gluon_6l3.urdf
+├── media/
+│       ├── architecture.png
+│       ├── error.png
+│       ├── offline_demo.gif
+│       ├── online_demo.gif
+│       └── tracking.png
+├── .dockerignore
 ├── .gitignore
-└── README.md
+├── Dockerfile
+├── README.md
+└── requirements.txt
 ```
 
 ## How to Run
