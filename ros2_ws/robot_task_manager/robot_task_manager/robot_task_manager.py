@@ -255,6 +255,40 @@ class RobotTaskManager(Node):
         self.current_joints_state = trajectory[-1]['q'].copy()
         return True, self.current_joints_state.copy(), 'Trajectory executed successfully'
 
+    def execute_waypoint_sequence(self, goal_handle, waypoint_list):
+        self.get_logger().info(f"Executing waypoint sequence: {len(waypoint_list)} points")
+
+        current_joints = self.current_joints_state.copy()
+
+        for idx, wp in enumerate(waypoint_list):
+            self.get_logger().info(f"Waypoint {idx}: {wp}")
+
+            # 解析 waypoint
+            if wp['type'] == 'pose':
+                target_joints, msg = self.solve_pose_to_joint_target(
+                    wp['x'], wp['y'], wp['z'],
+                    wp['roll'], wp['pitch'], wp['yaw']
+                )
+                if target_joints is None:
+                    return False, current_joints, f"Waypoint {idx} failed: {msg}"
+
+            elif wp['type'] == 'joint':
+                target_joints = wp['joints']
+
+            else:
+                return False, current_joints, f"Unknown waypoint type: {wp['type']}"
+
+            # 生成轨迹
+            trajectory, _, _ = self.generate_cubic_joint_trajectory(current_joints, target_joints)
+
+            # 执行
+            ok, current_joints, msg = self.execute_trajectory(goal_handle, trajectory)
+
+            if not ok:
+                return False, current_joints, f"Waypoint {idx} execution failed: {msg}"
+
+        return True, current_joints, "Waypoint sequence executed"
+
     def export_trajectory_to_csv(self, trajectory):
         with open(self.trajectory_file, mode='w', newline='') as file:
             writer = csv.writer(file)
@@ -276,6 +310,36 @@ class RobotTaskManager(Node):
         )
 
         self.robot_status = 'busy'
+
+        use_waypoint_test = False
+
+        if use_waypoint_test:
+            waypoint_list = [
+                {
+                    'type': 'pose',
+                    'x': x,
+                    'y': y,
+                    'z': z,
+                    'roll': roll,
+                    'pitch': pitch,
+                    'yaw': yaw
+                },
+                {
+                    'type': 'joint',
+                    'joints': self.current_joints_state.copy()
+                }
+            ]
+
+            ok, final_joints, exec_msg = self.execute_waypoint_sequence(goal_handle, waypoint_list)
+
+            if not ok:
+                self.robot_status = 'idle'
+                goal_handle.abort()
+                return self.make_result(False, final_joints, exec_msg)
+
+            goal_handle.succeed()
+            self.robot_status = 'completed'
+            return self.make_result(True, final_joints, exec_msg)
 
         target_joints, msg = self.solve_pose_to_joint_target(x, y, z, roll, pitch, yaw)
         if target_joints is None:
