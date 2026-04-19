@@ -2,8 +2,9 @@ import time
 import csv
 import os
 import numpy as np
-
+import json
 import rclpy
+
 from rclpy.action import ActionServer, CancelResponse
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor
@@ -224,6 +225,25 @@ class RobotTaskManager(Node):
 
         return trajectory, T_total, total_steps
 
+    def generate_linear_pose_waypoints(self, start_pose, goal_pose, num_steps=20):
+        pose_points = []
+
+        for step in range(num_steps + 1):
+            s = step / num_steps
+
+            pose = {
+                'x': start_pose['x'] + s * (goal_pose['x'] - start_pose['x']),
+                'y': start_pose['y'] + s * (goal_pose['y'] - start_pose['y']),
+                'z': start_pose['z'] + s * (goal_pose['z'] - start_pose['z']),
+                'roll': start_pose['roll'] + s * (goal_pose['roll'] - start_pose['roll']),
+                'pitch': start_pose['pitch'] + s * (goal_pose['pitch'] - start_pose['pitch']),
+                'yaw': start_pose['yaw'] + s * (goal_pose['yaw'] - start_pose['yaw'])
+            }
+
+            pose_points.append(pose)
+
+        return pose_points
+
     def execute_trajectory(self, goal_handle, trajectory):
         feedback_msg = MoveToPose.Feedback()
         feedback_msg.total_steps = len(trajectory) - 1
@@ -255,37 +275,87 @@ class RobotTaskManager(Node):
         self.current_joints_state = trajectory[-1]['q'].copy()
         return True, self.current_joints_state.copy(), 'Trajectory executed successfully'
 
+    def execute_linear_pose_motion(self, goal_handle, start_pose, goal_pose):
+        pose_points = self.generate_linear_pose_waypoints(start_pose, goal_pose, num_steps=20)
+
+        current_joints = self.current_joints_state.copy()
+
+        for idx, pose in enumerate(pose_points):
+            target_joints, msg = self.solve_pose_to_joint_target(
+                pose['x'], pose['y'], pose['z'],
+                pose['roll'], pose['pitch'], pose['yaw']
+            )
+
+            if target_joints is None:
+                return False, current_joints, f"L motion IK failed at point {idx}: {msg}"
+
+            trajectory, _, _ = self.generate_cubic_joint_trajectory(current_joints, target_joints)
+            ok, current_joints, exec_msg = self.execute_trajectory(goal_handle, trajectory)
+
+            if not ok:
+                return False, current_joints, f"L motion failed at point {idx}: {exec_msg}"
+
+        return True, current_joints, "L motion executed successfully"
+
     def execute_waypoint_sequence(self, goal_handle, waypoint_list):
         self.get_logger().info(f"Executing waypoint sequence: {len(waypoint_list)} points")
 
         current_joints = self.current_joints_state.copy()
+        previous_pose_wp = None
 
         for idx, wp in enumerate(waypoint_list):
             self.get_logger().info(f"Waypoint {idx}: {wp}")
 
-            # 解析 waypoint
             if wp['type'] == 'pose':
-                target_joints, msg = self.solve_pose_to_joint_target(
-                    wp['x'], wp['y'], wp['z'],
-                    wp['roll'], wp['pitch'], wp['yaw']
-                )
-                if target_joints is None:
-                    return False, current_joints, f"Waypoint {idx} failed: {msg}"
+                motion = wp.get('motion', 'R')
+
+                if motion == 'R':
+                    target_joints, msg = self.solve_pose_to_joint_target(
+                        wp['x'], wp['y'], wp['z'],
+                        wp['roll'], wp['pitch'], wp['yaw']
+                    )
+                    if target_joints is None:
+                        return False, current_joints, f"Waypoint {idx} failed: {msg}"
+
+                    trajectory, _, _ = self.generate_cubic_joint_trajectory(current_joints, target_joints)
+                    ok, current_joints, msg = self.execute_trajectory(goal_handle, trajectory)
+
+                    if not ok:
+                        return False, current_joints, f"Waypoint {idx} execution failed: {msg}"
+
+                elif motion == 'L':
+                    if previous_pose_wp is None:
+                        return False, current_joints, f"Waypoint {idx} is L but has no previous pose waypoint"
+
+                    ok, current_joints, msg = self.execute_linear_pose_motion(goal_handle, previous_pose_wp, wp)
+
+                    if not ok:
+                        return False, current_joints, f"Waypoint {idx} execution failed: {msg}"
+
+                else:
+                    return False, current_joints, f"Unknown motion type: {motion}"
+
+                previous_pose_wp = {
+                    'x': wp['x'],
+                    'y': wp['y'],
+                    'z': wp['z'],
+                    'roll': wp['roll'],
+                    'pitch': wp['pitch'],
+                    'yaw': wp['yaw']
+                }
 
             elif wp['type'] == 'joint':
                 target_joints = wp['joints']
+                trajectory, _, _ = self.generate_cubic_joint_trajectory(current_joints, target_joints)
+                ok, current_joints, msg = self.execute_trajectory(goal_handle, trajectory)
+
+                if not ok:
+                    return False, current_joints, f"Waypoint {idx} execution failed: {msg}"
+
+                previous_pose_wp = None
 
             else:
                 return False, current_joints, f"Unknown waypoint type: {wp['type']}"
-
-            # 生成轨迹
-            trajectory, _, _ = self.generate_cubic_joint_trajectory(current_joints, target_joints)
-
-            # 执行
-            ok, current_joints, msg = self.execute_trajectory(goal_handle, trajectory)
-
-            if not ok:
-                return False, current_joints, f"Waypoint {idx} execution failed: {msg}"
 
         return True, current_joints, "Waypoint sequence executed"
 
@@ -298,6 +368,24 @@ class RobotTaskManager(Node):
                 writer.writerow([sample['t']] + sample['q'])
 
     def execute_callback(self, goal_handle):
+        if goal_handle.request.waypoints_json:
+            try:
+                waypoint_list = json.loads(goal_handle.request.waypoints_json)
+            except Exception as e:
+                goal_handle.abort()
+                return self.make_result(False, self.current_joints_state, f"JSON parse error: {e}")
+
+            ok, final_joints, msg = self.execute_waypoint_sequence(goal_handle, waypoint_list)
+
+            if not ok:
+                self.robot_status = 'idle'
+                goal_handle.abort()
+                return self.make_result(False, final_joints, msg)
+
+            goal_handle.succeed()
+            self.robot_status = 'completed'
+            return self.make_result(True, final_joints, msg)
+
         x = goal_handle.request.x
         y = goal_handle.request.y
         z = goal_handle.request.z

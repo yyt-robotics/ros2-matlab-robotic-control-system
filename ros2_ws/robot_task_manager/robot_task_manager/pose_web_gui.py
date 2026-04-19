@@ -1,5 +1,6 @@
 import threading
 import time
+import json
 
 from flask import Flask, request, render_template_string
 import rclpy
@@ -129,7 +130,18 @@ HTML_PAGE = """
             <span class="val" id="yaw_val">{{ yaw }}</span>
         </div>
 
+        <div class="row">
+            <label>motion</label>
+            <select name="motion">
+                <option value="R">R</option>
+                <option value="L">L</option>
+            </select>
+        </div>
+
         <button type="submit">Send Goal</button>
+        <button type="submit" formaction="/save_point">Save Point</button>
+        <button type="submit" formaction="/run_waypoints">Run Sequence</button>
+        <button type="submit" formaction="/clear_waypoints">Clear Points</button>
     </form>
 
     <form method="post" action="/cancel_goal">
@@ -139,6 +151,13 @@ HTML_PAGE = """
     {% if status_text %}
     <div class="status {{ status_class }}">{{ status_text }}</div>
     {% endif %}
+
+    <h3>Waypoints</h3>
+    <div>
+    {% for wp in waypoints %}
+        [{{ loop.index0 }}] motion={{ wp.motion }}, x={{ wp.x }}, y={{ wp.y }}, z={{ wp.z }}, roll={{ wp.roll }}, pitch={{ wp.pitch }}, yaw={{ wp.yaw }}<br>
+    {% endfor %}
+    </div>
 
     <div class="log">{{ log_text }}</div>
 </body>
@@ -155,6 +174,8 @@ class WebActionClient(Node):
             'execute_task'
         )
 
+        self.waypoints = []
+
         self._goal_handle = None
         self._send_goal_future = None
         self._get_result_future = None
@@ -164,6 +185,46 @@ class WebActionClient(Node):
 
         self.last_status_text = 'Web GUI started.'
         self.last_status_class = 'info'
+
+    def save_waypoint(self, x, y, z, roll, pitch, yaw, motion='R'):
+        wp = {
+            'type': 'pose',
+            'motion': motion,
+            'x': x,
+            'y': y,
+            'z': z,
+            'roll': roll,
+            'pitch': pitch,
+            'yaw': yaw
+        }
+        self.waypoints.append(wp)
+
+        self.append_log(f"Saved waypoint #{len(self.waypoints)-1}: {wp}")
+        self.set_status(f"Waypoint saved. Total: {len(self.waypoints)}", 'info')
+
+    def clear_waypoints(self):
+        self.waypoints = []
+        self.append_log("Waypoints cleared.")
+        self.set_status("Waypoints cleared.", 'info')
+
+    def run_waypoints(self):
+        if not self.waypoints:
+            self.append_log('No waypoints to run.')
+            self.set_status('No waypoints.', 'fail')
+            return
+
+        goal_msg = MoveToPose.Goal()
+
+        goal_msg.waypoints_json = json.dumps(self.waypoints)
+
+        self.append_log(f"Sending {len(self.waypoints)} waypoints...")
+        self.set_status('Running waypoint sequence...', 'info')
+
+        self._send_goal_future = self._action_client.send_goal_async(
+            goal_msg,
+            feedback_callback=self.feedback_callback
+        )
+        self._send_goal_future.add_done_callback(self.goal_response_callback)
 
     def append_log(self, msg):
         with self._lock:
@@ -291,7 +352,8 @@ def render_page(x='0.10', y='0.10', z='0.10', roll='0.0', pitch='0.0', yaw='0.0'
         log_text=ros_node.get_logs(),
         status_text=status_text,
         status_class=status_class,
-        x=x, y=y, z=z, roll=roll, pitch=pitch, yaw=yaw
+        x=x, y=y, z=z, roll=roll, pitch=pitch, yaw=yaw,
+        waypoints=ros_node.waypoints
     )
 
 
@@ -337,6 +399,28 @@ def main():
     ros_node.set_status('Web GUI started.', 'info')
     app.run(host='0.0.0.0', port=8080, debug=False)
 
+@app.route('/save_point', methods=['POST'])
+def save_point():
+    x = float(request.form.get('x', 0))
+    y = float(request.form.get('y', 0))
+    z = float(request.form.get('z', 0))
+    roll = float(request.form.get('roll', 0))
+    pitch = float(request.form.get('pitch', 0))
+    yaw = float(request.form.get('yaw', 0))
+    motion = request.form.get('motion', 'R')
+
+    ros_node.save_waypoint(x, y, z, roll, pitch, yaw, motion)
+    return render_page(x, y, z, roll, pitch, yaw)
+
+@app.route('/run_waypoints', methods=['POST'])
+def run_waypoints():
+    ros_node.run_waypoints()
+    return render_page()
+
+@app.route('/clear_waypoints', methods=['POST'])
+def clear_waypoints():
+    ros_node.clear_waypoints()
+    return render_page()
 
 if __name__ == '__main__':
     main()
