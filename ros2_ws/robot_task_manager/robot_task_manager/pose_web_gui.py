@@ -1,6 +1,7 @@
 import threading
 import time
 import json
+import os
 
 from flask import Flask, request, render_template_string
 import rclpy
@@ -142,6 +143,8 @@ HTML_PAGE = """
         <button type="submit" formaction="/save_point">Save Point</button>
         <button type="submit" formaction="/run_waypoints">Run Sequence</button>
         <button type="submit" formaction="/clear_waypoints">Clear Points</button>
+        <button type="submit" formaction="/save_program">Save Program</button>
+        <button type="submit" formaction="/load_program">Load Program</button>
     </form>
 
     <form method="post" action="/cancel_goal">
@@ -195,6 +198,10 @@ class WebActionClient(Node):
         )
 
         self.waypoints = []
+
+        self.program_dir = os.path.expanduser('~/ros2_project_data/programs')
+        os.makedirs(self.program_dir, exist_ok=True)
+        self.program_file = os.path.join(self.program_dir, 'waypoints_program.json')
 
         self._goal_handle = None
         self._send_goal_future = None
@@ -377,6 +384,33 @@ class WebActionClient(Node):
         else:
             self.append_log(f"Invalid move down index: {idx}")
             self.set_status("Cannot move down.", 'fail')
+    
+    def save_program_to_file(self):
+        try:
+            with open(self.program_file, 'w', encoding='utf-8') as f:
+                json.dump(self.waypoints, f, indent=2)
+
+            self.append_log(f"Program saved to: {self.program_file}")
+            self.set_status("Program saved successfully.", 'info')
+        except Exception as e:
+            self.append_log(f"Save program failed: {e}")
+            self.set_status(f"Save failed: {e}", 'fail')
+
+    def load_program_from_file(self):
+        try:
+            if not os.path.exists(self.program_file):
+                self.append_log(f"Program file not found: {self.program_file}")
+                self.set_status("Program file not found.", 'fail')
+                return
+
+            with open(self.program_file, 'r', encoding='utf-8') as f:
+                self.waypoints = json.load(f)
+
+            self.append_log(f"Program loaded from: {self.program_file}")
+            self.set_status(f"Program loaded. Total waypoints: {len(self.waypoints)}", 'info')
+        except Exception as e:
+            self.append_log(f"Load program failed: {e}")
+            self.set_status(f"Load failed: {e}", 'fail')
 
 
 rclpy.init()
@@ -487,6 +521,16 @@ def move_up():
 def move_down():
     idx = int(request.form.get('idx', -1))
     ros_node.move_waypoint_down(idx)
+    return render_page()
+
+@app.route('/save_program', methods=['POST'])
+def save_program():
+    ros_node.save_program_to_file()
+    return render_page()
+
+@app.route('/load_program', methods=['POST'])
+def load_program():
+    ros_node.load_program_from_file()
     return render_page()
 
 if __name__ == '__main__':
