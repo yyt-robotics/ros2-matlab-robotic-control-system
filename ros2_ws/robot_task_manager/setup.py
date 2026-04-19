@@ -15,6 +15,10 @@ setup(
             'share/' + package_name,
             ['package.xml']
         ),
+	(
+            'share/' + package_name + '/launch',
+            ['launch/system.launch.py']
+        ),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
