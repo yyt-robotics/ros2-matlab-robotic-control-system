@@ -155,7 +155,27 @@ HTML_PAGE = """
     <h3>Waypoints</h3>
     <div>
     {% for wp in waypoints %}
-        [{{ loop.index0 }}] motion={{ wp.motion }}, x={{ wp.x }}, y={{ wp.y }}, z={{ wp.z }}, roll={{ wp.roll }}, pitch={{ wp.pitch }}, yaw={{ wp.yaw }}<br>
+        <div style="margin-bottom: 8px;">
+            [{{ loop.index0 }}]
+            motion={{ wp.motion }},
+            x={{ wp.x }}, y={{ wp.y }}, z={{ wp.z }},
+            roll={{ wp.roll }}, pitch={{ wp.pitch }}, yaw={{ wp.yaw }}
+
+            <form method="post" action="/delete_point" style="display:inline; margin-left:10px;">
+                <input type="hidden" name="idx" value="{{ loop.index0 }}">
+                <button type="submit">Delete</button>
+            </form>
+
+            <form method="post" action="/move_up" style="display:inline; margin-left:6px;">
+                <input type="hidden" name="idx" value="{{ loop.index0 }}">
+                <button type="submit">Up</button>
+            </form>
+
+            <form method="post" action="/move_down" style="display:inline; margin-left:6px;">
+                <input type="hidden" name="idx" value="{{ loop.index0 }}">
+                <button type="submit">Down</button>
+            </form>
+        </div>
     {% endfor %}
     </div>
 
@@ -330,6 +350,34 @@ class WebActionClient(Node):
             self.append_log(f'Cancel failed: {e}')
             self.set_status(f'Cancel failed: {e}', 'fail')
 
+    def delete_waypoint(self, idx):
+        if 0 <= idx < len(self.waypoints):
+            removed = self.waypoints.pop(idx)
+            self.append_log(f"Deleted waypoint {idx}: {removed}")
+            self.set_status(f"Waypoint {idx} deleted.", 'info')
+        else:
+            self.append_log(f"Invalid delete index: {idx}")
+            self.set_status("Invalid index.", 'fail')
+
+    def move_waypoint_up(self, idx):
+        if 0 < idx < len(self.waypoints):
+            self.waypoints[idx - 1], self.waypoints[idx] = self.waypoints[idx], self.waypoints[idx - 1]
+            self.append_log(f"Moved waypoint {idx} up.")
+            self.set_status(f"Waypoint {idx} moved up.", 'info')
+        else:
+            self.append_log(f"Invalid move up index: {idx}")
+            self.set_status("Cannot move up.", 'fail')
+
+
+    def move_waypoint_down(self, idx):
+        if 0 <= idx < len(self.waypoints) - 1:
+            self.waypoints[idx + 1], self.waypoints[idx] = self.waypoints[idx], self.waypoints[idx + 1]
+            self.append_log(f"Moved waypoint {idx} down.")
+            self.set_status(f"Waypoint {idx} moved down.", 'info')
+        else:
+            self.append_log(f"Invalid move down index: {idx}")
+            self.set_status("Cannot move down.", 'fail')
+
 
 rclpy.init()
 ros_node = WebActionClient()
@@ -420,6 +468,25 @@ def run_waypoints():
 @app.route('/clear_waypoints', methods=['POST'])
 def clear_waypoints():
     ros_node.clear_waypoints()
+    return render_page()
+
+@app.route('/delete_point', methods=['POST'])
+def delete_point():
+    idx = int(request.form.get('idx', -1))
+    ros_node.delete_waypoint(idx)
+    return render_page()
+
+@app.route('/move_up', methods=['POST'])
+def move_up():
+    idx = int(request.form.get('idx', -1))
+    ros_node.move_waypoint_up(idx)
+    return render_page()
+
+
+@app.route('/move_down', methods=['POST'])
+def move_down():
+    idx = int(request.form.get('idx', -1))
+    ros_node.move_waypoint_down(idx)
     return render_page()
 
 if __name__ == '__main__':
