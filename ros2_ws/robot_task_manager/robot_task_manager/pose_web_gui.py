@@ -132,6 +132,11 @@ HTML_PAGE = """
         </div>
 
         <div class="row">
+            <label>Waypoint Name</label>
+            <input type="text" id="wp_name" name="wp_name" placeholder="Enter name (optional)">
+        </div>
+
+        <div class="row">
             <label>motion</label>
             <select name="motion">
                 <option value="R">R</option>
@@ -158,23 +163,20 @@ HTML_PAGE = """
     <h3>Waypoints</h3>
     <div>
     {% for wp in waypoints %}
-        <div style="margin-bottom: 8px;">
-            [{{ loop.index0 }}]
-            motion={{ wp.motion }},
-            x={{ wp.x }}, y={{ wp.y }}, z={{ wp.z }},
-            roll={{ wp.roll }}, pitch={{ wp.pitch }}, yaw={{ wp.yaw }}
+        <div style="border:1px solid #ccc; padding:8px; margin-bottom:6px; border-radius:6px; background:#fafafa;">
+            <strong>[{{ wp.name }}]</strong> motion={{ wp.motion }}<br>
+            x={{ wp.x }}, y={{ wp.y }}, z={{ wp.z }}<br>
+            roll={{ wp.roll }}, pitch={{ wp.pitch }}, yaw={{ wp.yaw }}<br>
 
-            <form method="post" action="/delete_point" style="display:inline; margin-left:10px;">
+            <form method="post" action="/delete_point" style="display:inline;">
                 <input type="hidden" name="idx" value="{{ loop.index0 }}">
                 <button type="submit">Delete</button>
             </form>
-
-            <form method="post" action="/move_up" style="display:inline; margin-left:6px;">
+            <form method="post" action="/move_up" style="display:inline; margin-left:4px;">
                 <input type="hidden" name="idx" value="{{ loop.index0 }}">
                 <button type="submit">Up</button>
             </form>
-
-            <form method="post" action="/move_down" style="display:inline; margin-left:6px;">
+            <form method="post" action="/move_down" style="display:inline; margin-left:4px;">
                 <input type="hidden" name="idx" value="{{ loop.index0 }}">
                 <button type="submit">Down</button>
             </form>
@@ -213,10 +215,15 @@ class WebActionClient(Node):
         self.last_status_text = 'Web GUI started.'
         self.last_status_class = 'info'
 
-    def save_waypoint(self, x, y, z, roll, pitch, yaw, motion='R'):
+    def save_waypoint(self, x, y, z, roll, pitch, yaw, motion="R",name=None):
+
+        if not name:
+            name = f"P{len(self.waypoints)}"
+
         wp = {
             'type': 'pose',
-            'motion': motion,
+            'motion': motion, 
+            'name': name,
             'x': x,
             'y': y,
             'z': z,
@@ -225,8 +232,7 @@ class WebActionClient(Node):
             'yaw': yaw
         }
         self.waypoints.append(wp)
-
-        self.append_log(f"Saved waypoint #{len(self.waypoints)-1}: {wp}")
+        self.append_log(f"Saved waypoint '{name}': {wp}")
         self.set_status(f"Waypoint saved. Total: {len(self.waypoints)}", 'info')
 
     def clear_waypoints(self):
@@ -483,15 +489,24 @@ def main():
 
 @app.route('/save_point', methods=['POST'])
 def save_point():
-    x = float(request.form.get('x', 0))
-    y = float(request.form.get('y', 0))
-    z = float(request.form.get('z', 0))
-    roll = float(request.form.get('roll', 0))
-    pitch = float(request.form.get('pitch', 0))
-    yaw = float(request.form.get('yaw', 0))
-    motion = request.form.get('motion', 'R')
+    try:
+        x = float(request.form.get('x', 0))
+        y = float(request.form.get('y', 0))
+        z = float(request.form.get('z', 0))
+        roll = float(request.form.get('roll', 0))
+        pitch = float(request.form.get('pitch', 0))
+        yaw = float(request.form.get('yaw', 0))
 
-    ros_node.save_waypoint(x, y, z, roll, pitch, yaw, motion)
+        name = request.form.get('name', "").strip()
+
+        motion = request.form.get('motion', 'R').strip().upper()
+
+        ros_node.save_waypoint(x, y, z, roll, pitch, yaw, motion, name)
+
+    except Exception as e:
+        ros_node.append_log(f'Input error: {e}')
+        ros_node.set_status(f'Input error: {e}', 'fail')
+
     return render_page(x, y, z, roll, pitch, yaw)
 
 @app.route('/run_waypoints', methods=['POST'])
@@ -513,14 +528,19 @@ def delete_point():
 @app.route('/move_up', methods=['POST'])
 def move_up():
     idx = int(request.form.get('idx', -1))
-    ros_node.move_waypoint_up(idx)
+    if 0 < idx < len(ros_node.waypoints):
+        ros_node.waypoints[idx-1], ros_node.waypoints[idx] = ros_node.waypoints[idx], ros_node.waypoints[idx-1]
+        ros_node.append_log(f"Moved waypoint {idx} up")
+        ros_node.set_status(f"Waypoint {idx} moved up", 'info')
     return render_page()
-
 
 @app.route('/move_down', methods=['POST'])
 def move_down():
     idx = int(request.form.get('idx', -1))
-    ros_node.move_waypoint_down(idx)
+    if 0 <= idx < len(ros_node.waypoints)-1:
+        ros_node.waypoints[idx+1], ros_node.waypoints[idx] = ros_node.waypoints[idx], ros_node.waypoints[idx+1]
+        ros_node.append_log(f"Moved waypoint {idx} down")
+        ros_node.set_status(f"Waypoint {idx} moved down", 'info')
     return render_page()
 
 @app.route('/save_program', methods=['POST'])
@@ -532,6 +552,7 @@ def save_program():
 def load_program():
     ros_node.load_program_from_file()
     return render_page()
+
 
 if __name__ == '__main__':
     main()

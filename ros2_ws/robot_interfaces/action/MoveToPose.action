@@ -1,24 +1,24 @@
-# Request
+# MoveToPose.action
 
 string waypoints_json
 
+string type
+string motion
 float64 x
 float64 y
 float64 z
 float64 roll
 float64 pitch
 float64 yaw
+int32 num_steps
+float64 duration
 
 ---
-
-# Result
 bool success
-float64[] final_joints
+float64[6] final_joints
 string message
 
 ---
-
-# Feedback
 int32 current_step
 int32 total_steps
-float64[] current_joints
+float64[6] current_joints

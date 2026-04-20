@@ -62,18 +62,32 @@ class RobotTaskManager(Node):
             callback_group=self._callback_group
         )
         
-        # CSV path for offline trajectory export
-        default_trajectory_file = os.path.expanduser(
-            "~/ros2_project_data/matlab/trajectory/trajectory_log_6dof.csv"
+        # ===== Resolve trajectory CSV path =====
+        data_dir = os.path.expanduser('~/ros2_project_data')
+        external_trajectory_file = os.path.join(
+            data_dir, 'matlab', 'trajectory', 'trajectory_log_6dof.csv'
         )
 
-        self.declare_parameter("trajectory_file", default_trajectory_file)
+        # Project root fallback: go up from this file to repository root
+        current_file_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.abspath(os.path.join(current_file_dir, '..', '..', '..'))
+        repo_trajectory_file = os.path.join(
+            project_root, 'matlab', 'trajectory', 'trajectory_log_6dof.csv'
+        )
+
+        # Prefer external data dir if it exists, otherwise fallback to repo path
+        if os.path.isdir(data_dir):
+            default_trajectory_file = external_trajectory_file
+        else:
+            default_trajectory_file = repo_trajectory_file
+
+        self.declare_parameter('trajectory_file', default_trajectory_file)
         self.trajectory_file = (
-            self.get_parameter("trajectory_file")
+            self.get_parameter('trajectory_file')
             .get_parameter_value()
             .string_value
         )
-        
+
         os.makedirs(os.path.dirname(self.trajectory_file), exist_ok=True)
         self.get_logger().info(f'Offline trajectory CSV path: {self.trajectory_file}')
 
@@ -244,10 +258,9 @@ class RobotTaskManager(Node):
 
         return pose_points
 
-    def execute_trajectory(self, goal_handle, trajectory):
+    def execute_trajectory(self, goal_handle, trajectory, verbose=True):
         feedback_msg = MoveToPose.Feedback()
         feedback_msg.total_steps = len(trajectory) - 1
-
         current_joints = self.current_joints_state.copy()
 
         for step, sample in enumerate(trajectory):
@@ -265,9 +278,8 @@ class RobotTaskManager(Node):
             feedback_msg.current_joints = [float(q) for q in current_joints]
             goal_handle.publish_feedback(feedback_msg)
 
-            self.get_logger().info(
-                f"Step {step}/{len(trajectory)-1}: t={sample['t']:.3f}, joints={current_joints}"
-            )
+            if verbose:
+                self.get_logger().info(f"Step {step}/{len(trajectory)-1}: t={sample['t']:.3f}")
 
             if step < len(trajectory) - 1:
                 time.sleep(self.dt)
@@ -276,8 +288,11 @@ class RobotTaskManager(Node):
         return True, self.current_joints_state.copy(), 'Trajectory executed successfully'
 
     def execute_linear_pose_motion(self, goal_handle, start_pose, goal_pose):
-        pose_points = self.generate_linear_pose_waypoints(start_pose, goal_pose, num_steps=20)
+ 
+        num_steps = goal_pose.get('num_steps', 20)
+        total_time = goal_pose.get('duration', num_steps * self.dt)
 
+        pose_points = self.generate_linear_pose_waypoints(start_pose, goal_pose, num_steps=num_steps)
         current_joints = self.current_joints_state.copy()
 
         for idx, pose in enumerate(pose_points):
@@ -285,16 +300,20 @@ class RobotTaskManager(Node):
                 pose['x'], pose['y'], pose['z'],
                 pose['roll'], pose['pitch'], pose['yaw']
             )
-
             if target_joints is None:
                 return False, current_joints, f"L motion IK failed at point {idx}: {msg}"
 
-            trajectory, _, _ = self.generate_cubic_joint_trajectory(current_joints, target_joints)
-            ok, current_joints, exec_msg = self.execute_trajectory(goal_handle, trajectory)
+            steps_per_segment = max(int(total_time / self.dt / num_steps), 1)
 
+            trajectory, _, _ = self.generate_cubic_joint_trajectory(current_joints, target_joints)
+
+            ok, current_joints, exec_msg = self.execute_trajectory(goal_handle, trajectory, verbose=False)
             if not ok:
                 return False, current_joints, f"L motion failed at point {idx}: {exec_msg}"
 
+            self.get_logger().info(f"L motion point {idx}/{num_steps} executed successfully.")
+
+        self.current_joints_state = current_joints.copy()
         return True, current_joints, "L motion executed successfully"
 
     def execute_waypoint_sequence(self, goal_handle, waypoint_list):
