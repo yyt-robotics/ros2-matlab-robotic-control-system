@@ -221,3 +221,19 @@ log/
 # MATLAB trajectory output
 # ========================
 matlab/trajectory/*.csv
+
+# ========================
+# MATLAB / Simulink temporary / autosave files
+# ========================
+
+# Simulink Autosave files
+*.asv
+
+# Simulink compilation/project cache
+slprj/
+
+# Simscape temporary or rebuilt models (optional)
+gluon_6l3_rebuilt.slx
+
+# MATLAB generated URDF
+tmp/matlab_urdf/
