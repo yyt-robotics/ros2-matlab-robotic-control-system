@@ -2,10 +2,27 @@ clc; clear; close all;
 
 % Automatically add all subfolders
 addpath(genpath(pwd));
+addpath(genpath(fullfile(pwd, 'models')));
+addpath(genpath(fullfile(pwd, 'utils')));
+matlab_urdf_path = generate_matlab_urdf();
+robot = importrobot(matlab_urdf_path);
 
 %% ===== 1. Path settings =====
 project_root = fileparts(mfilename('fullpath'));
-csv_path = fullfile(project_root, 'trajectory', 'trajectory_log_6dof.csv');
+
+external_csv_path = fullfile(getenv('HOME'), ...
+    'ros2_project_data', 'matlab', 'trajectory', 'trajectory_log_6dof.csv');
+
+repo_csv_path = fullfile(project_root, 'trajectory', 'trajectory_log_6dof.csv');
+
+if isfile(external_csv_path)
+    csv_path = external_csv_path;
+    fprintf('Using external trajectory file: %s\n', csv_path);
+else
+    csv_path = repo_csv_path;
+    fprintf('Using repository trajectory file: %s\n', csv_path);
+end
+
 model_name = 'pid_control';
 
 %% ===== 2. Check if the CSV exists =====
