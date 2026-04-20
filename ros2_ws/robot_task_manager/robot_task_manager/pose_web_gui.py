@@ -2,6 +2,7 @@ import threading
 import time
 import json
 import os
+import csv
 
 from flask import Flask, request, render_template_string
 import rclpy
@@ -201,6 +202,7 @@ class WebActionClient(Node):
 
         self.waypoints = []
 
+        # 存储 waypoint program 文件夹
         self.program_dir = os.path.expanduser('~/ros2_project_data/programs')
         os.makedirs(self.program_dir, exist_ok=True)
         self.program_file = os.path.join(self.program_dir, 'waypoints_program.json')
@@ -215,14 +217,14 @@ class WebActionClient(Node):
         self.last_status_text = 'Web GUI started.'
         self.last_status_class = 'info'
 
-    def save_waypoint(self, x, y, z, roll, pitch, yaw, motion="R",name=None):
-
+    # ---------- Waypoint 操作 ----------
+    def save_waypoint(self, x, y, z, roll, pitch, yaw, motion="R", name=None):
         if not name:
             name = f"P{len(self.waypoints)}"
 
         wp = {
             'type': 'pose',
-            'motion': motion, 
+            'motion': motion,
             'name': name,
             'x': x,
             'y': y,
@@ -240,73 +242,34 @@ class WebActionClient(Node):
         self.append_log("Waypoints cleared.")
         self.set_status("Waypoints cleared.", 'info')
 
+    # ---------- Run Sequence ----------
     def run_waypoints(self):
         if not self.waypoints:
             self.append_log('No waypoints to run.')
             self.set_status('No waypoints.', 'fail')
             return
 
-        goal_msg = MoveToPose.Goal()
+        try:
+            goal_msg = MoveToPose.Goal()
+            goal_msg.waypoints_json = json.dumps(self.waypoints)
 
-        goal_msg.waypoints_json = json.dumps(self.waypoints)
+            self.append_log(f"Sending {len(self.waypoints)} waypoints to Action Server...")
+            self.set_status('Running waypoint sequence...', 'info')
 
-        self.append_log(f"Sending {len(self.waypoints)} waypoints...")
-        self.set_status('Running waypoint sequence...', 'info')
+            # 异步发送 goal
+            self._send_goal_future = self._action_client.send_goal_async(
+                goal_msg,
+                feedback_callback=self.feedback_callback
+            )
+            self._send_goal_future.add_done_callback(self.goal_response_callback)
 
-        self._send_goal_future = self._action_client.send_goal_async(
-            goal_msg,
-            feedback_callback=self.feedback_callback
-        )
-        self._send_goal_future.add_done_callback(self.goal_response_callback)
+        except Exception as e:
+            self.append_log(f"Run Sequence failed: {e}")
+            self.set_status(f"Run Sequence failed: {e}", 'fail')
 
-    def append_log(self, msg):
-        with self._lock:
-            timestamp = time.strftime('%H:%M:%S')
-            self.logs.append(f'[{timestamp}] {msg}')
-            self.logs = self.logs[-100:]
-
-    def get_logs(self):
-        with self._lock:
-            return '\n'.join(self.logs)
-
-    def set_status(self, text, css_class='info'):
-        with self._lock:
-            self.last_status_text = text
-            self.last_status_class = css_class
-
-    def get_status(self):
-        with self._lock:
-            return self.last_status_text, self.last_status_class
-
-    def send_goal(self, x, y, z, roll, pitch, yaw):
-        goal_msg = MoveToPose.Goal()
-        goal_msg.x = x
-        goal_msg.y = y
-        goal_msg.z = z
-        goal_msg.roll = roll
-        goal_msg.pitch = pitch
-        goal_msg.yaw = yaw
-
-        self.append_log(
-            f'Sending goal: x={x:.3f}, y={y:.3f}, z={z:.3f}, '
-            f'roll={roll:.3f}, pitch={pitch:.3f}, yaw={yaw:.3f}'
-        )
-        self.set_status('Sending goal...', 'info')
-
-        if not self._action_client.wait_for_server(timeout_sec=5.0):
-            self.append_log('Action server not available.')
-            self.set_status('Action server not available.', 'fail')
-            return
-
-        self._send_goal_future = self._action_client.send_goal_async(
-            goal_msg,
-            feedback_callback=self.feedback_callback
-        )
-        self._send_goal_future.add_done_callback(self.goal_response_callback)
-
+    # ---------- ActionClient 回调 ----------
     def goal_response_callback(self, future):
         goal_handle = future.result()
-
         if not goal_handle.accepted:
             self.append_log('Goal rejected')
             self.set_status('Goal rejected.', 'fail')
@@ -343,6 +306,7 @@ class WebActionClient(Node):
         else:
             self.set_status(f'Failed: {result.message}', 'fail')
 
+    # ---------- Cancel Goal ----------
     def cancel_goal(self):
         if self._goal_handle is None:
             self.append_log('No active goal to cancel.')
@@ -363,39 +327,31 @@ class WebActionClient(Node):
             self.append_log(f'Cancel failed: {e}')
             self.set_status(f'Cancel failed: {e}', 'fail')
 
-    def delete_waypoint(self, idx):
-        if 0 <= idx < len(self.waypoints):
-            removed = self.waypoints.pop(idx)
-            self.append_log(f"Deleted waypoint {idx}: {removed}")
-            self.set_status(f"Waypoint {idx} deleted.", 'info')
-        else:
-            self.append_log(f"Invalid delete index: {idx}")
-            self.set_status("Invalid index.", 'fail')
+    # ---------- 日志与状态 ----------
+    def append_log(self, msg):
+        with self._lock:
+            timestamp = time.strftime('%H:%M:%S')
+            self.logs.append(f'[{timestamp}] {msg}')
+            self.logs = self.logs[-100:]
 
-    def move_waypoint_up(self, idx):
-        if 0 < idx < len(self.waypoints):
-            self.waypoints[idx - 1], self.waypoints[idx] = self.waypoints[idx], self.waypoints[idx - 1]
-            self.append_log(f"Moved waypoint {idx} up.")
-            self.set_status(f"Waypoint {idx} moved up.", 'info')
-        else:
-            self.append_log(f"Invalid move up index: {idx}")
-            self.set_status("Cannot move up.", 'fail')
+    def get_logs(self):
+        with self._lock:
+            return '\n'.join(self.logs)
 
+    def set_status(self, text, css_class='info'):
+        with self._lock:
+            self.last_status_text = text
+            self.last_status_class = css_class
 
-    def move_waypoint_down(self, idx):
-        if 0 <= idx < len(self.waypoints) - 1:
-            self.waypoints[idx + 1], self.waypoints[idx] = self.waypoints[idx], self.waypoints[idx + 1]
-            self.append_log(f"Moved waypoint {idx} down.")
-            self.set_status(f"Waypoint {idx} moved down.", 'info')
-        else:
-            self.append_log(f"Invalid move down index: {idx}")
-            self.set_status("Cannot move down.", 'fail')
-    
+    def get_status(self):
+        with self._lock:
+            return self.last_status_text, self.last_status_class
+
+    # ---------- Program 保存/加载 ----------
     def save_program_to_file(self):
         try:
             with open(self.program_file, 'w', encoding='utf-8') as f:
                 json.dump(self.waypoints, f, indent=2)
-
             self.append_log(f"Program saved to: {self.program_file}")
             self.set_status("Program saved successfully.", 'info')
         except Exception as e:
@@ -408,16 +364,33 @@ class WebActionClient(Node):
                 self.append_log(f"Program file not found: {self.program_file}")
                 self.set_status("Program file not found.", 'fail')
                 return
-
             with open(self.program_file, 'r', encoding='utf-8') as f:
                 self.waypoints = json.load(f)
-
             self.append_log(f"Program loaded from: {self.program_file}")
             self.set_status(f"Program loaded. Total waypoints: {len(self.waypoints)}", 'info')
         except Exception as e:
             self.append_log(f"Load program failed: {e}")
             self.set_status(f"Load failed: {e}", 'fail')
+    
+    def send_goal(self, x, y, z, roll, pitch, yaw):
+        goal_msg = MoveToPose.Goal()
+        goal_msg.x = x
+        goal_msg.y = y
+        goal_msg.z = z
+        goal_msg.roll = roll
+        goal_msg.pitch = pitch
+        goal_msg.yaw = yaw
 
+        self.append_log(f'Sending goal: x={x:.3f}, y={y:.3f}, z={z:.3f}, roll={roll:.3f}, pitch={pitch:.3f}, yaw={yaw:.3f}')
+        self.set_status('Sending goal...', 'info')
+
+        if not self._action_client.wait_for_server(timeout_sec=5.0):
+            self.append_log('Action server not available.')
+            self.set_status('Action server not available.', 'fail')
+            return
+
+        self._send_goal_future = self._action_client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
+        self._send_goal_future.add_done_callback(self.goal_response_callback)
 
 rclpy.init()
 ros_node = WebActionClient()
@@ -511,7 +484,34 @@ def save_point():
 
 @app.route('/run_waypoints', methods=['POST'])
 def run_waypoints():
-    ros_node.run_waypoints()
+    """
+    Execute all saved waypoints as a sequence and export full trajectory to CSV.
+    Supports both R (cubic) and L (linear) motion types.
+    """
+    if not ros_node.waypoints:
+        ros_node.append_log('No waypoints to run.')
+        ros_node.set_status('No waypoints.', 'fail')
+        return render_page()
+
+    try:
+        # 将 waypoint 列表发送给 RobotTaskManager 节点
+        goal_msg = MoveToPose.Goal()
+        goal_msg.waypoints_json = json.dumps(ros_node.waypoints)
+
+        ros_node.append_log(f"Sending {len(ros_node.waypoints)} waypoints to Action Server...")
+        ros_node.set_status('Running waypoint sequence...', 'info')
+
+        # 异步发送 goal
+        send_goal_future = ros_node._action_client.send_goal_async(
+            goal_msg,
+            feedback_callback=ros_node.feedback_callback
+        )
+        send_goal_future.add_done_callback(ros_node.goal_response_callback)
+
+    except Exception as e:
+        ros_node.append_log(f"Run Sequence failed: {e}")
+        ros_node.set_status(f"Run Sequence failed: {e}", 'fail')
+
     return render_page()
 
 @app.route('/clear_waypoints', methods=['POST'])
