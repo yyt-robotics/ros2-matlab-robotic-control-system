@@ -387,36 +387,255 @@ class RobotTaskManager(Node):
                 writer.writerow([sample['t']] + sample['q'])
 
     def execute_callback(self, goal_handle):
-        if not goal_handle.request.waypoints_json:
-            goal_handle.abort()
-            return self.make_result(False, self.current_joints_state, "No waypoints provided")
+        self.robot_status = 'busy'
 
+        # ===== Case 1: waypoint sequence =====
+        if goal_handle.request.waypoints_json:
+            try:
+                waypoint_list = json.loads(goal_handle.request.waypoints_json)
+                full_trajectory = self.generate_full_sequence_trajectory(waypoint_list)
+
+                goal_handle.succeed()
+                self.robot_status = 'completed'
+
+                return self.make_result(
+                    True,
+                    self.current_joints_state,
+                    f"Waypoint sequence trajectory generated. {len(full_trajectory)} points saved."
+                )
+
+            except Exception as e:
+                goal_handle.abort()
+                self.robot_status = 'idle'
+                return self.make_result(
+                    False,
+                    self.current_joints_state,
+                    f"Waypoint sequence failed: {e}"
+                )
+
+        # ===== Case 2: single Send Goal =====
         try:
-            waypoint_list = json.loads(goal_handle.request.waypoints_json)
-        except Exception as e:
-            goal_handle.abort()
-            return self.make_result(False, self.current_joints_state, f"JSON parse error: {e}")
+            target_pose = {
+                'type': 'pose',
+                'motion': 'R',
+                'name': 'single_goal',
+                'x': goal_handle.request.x,
+                'y': goal_handle.request.y,
+                'z': goal_handle.request.z,
+                'roll': goal_handle.request.roll,
+                'pitch': goal_handle.request.pitch,
+                'yaw': goal_handle.request.yaw
+            }
 
-        try:
-            # ===== 生成完整 trajectory =====
-            full_trajectory = self.generate_full_sequence_trajectory(waypoint_list)
+            traj, final_joints, _ = self.generate_r_motion_v2(
+                self.current_joints_state.copy(),
+                target_pose,
+                t_offset=0.0
+            )
 
-            # ===== 写入 CSV =====
-            if full_trajectory:
-                self.export_trajectory_to_csv(full_trajectory)
+            self.export_trajectory_to_csv(traj)
+            self.current_joints_state = final_joints.copy()
 
-            # ===== 更新 ROS2 Action =====
             goal_handle.succeed()
             self.robot_status = 'completed'
-            self.current_joints_state = full_trajectory[-1]['q'].copy() if full_trajectory else self.current_joints_state.copy()
 
-            return self.make_result(True, self.current_joints_state, f"Trajectory executed. {len(full_trajectory)} points saved.")
+            return self.make_result(
+                True,
+                self.current_joints_state,
+                f"Single-goal trajectory generated. {len(traj)} points saved."
+            )
 
         except Exception as e:
             goal_handle.abort()
             self.robot_status = 'idle'
-            return self.make_result(False, self.current_joints_state, f"Execution failed: {e}")
-        
+            return self.make_result(
+                False,
+                self.current_joints_state,
+                f"Single goal failed: {e}"
+            )
+    
+    def solve_pose_to_joint_target_seed(self, x, y, z, roll, pitch, yaw, q_seed):
+        """
+        Solve IK with a specified seed joint state.
+
+        This function uses continuous IK mode and is mainly intended for L motion.
+        It avoids multi-start IK branch switching.
+        """
+        if not self.is_pose_in_workspace(x, y, z):
+            return None, 'Target unreachable: outside workspace'
+
+        try:
+            success, q_sol, msg, pos_err, rot_err = self.ik_solver.solve_continuous(
+                x, y, z, roll, pitch, yaw,
+                q_init=np.array(q_seed, dtype=float)
+            )
+
+            self.get_logger().info(
+                f'Python IK(continuous): success={success}, '
+                f'pos_err={pos_err:.6f}, rot_err={rot_err:.6f}, msg={msg}'
+            )
+
+            lower = self.ik_solver.lower
+            upper = self.ik_solver.upper
+
+            if np.any(q_sol < lower) or np.any(q_sol > upper):
+                return None, 'IK returned joints outside limits'
+
+            if success or pos_err < 0.02:
+                return q_sol.tolist(), 'OK'
+
+            return None, f'Continuous IK failed. pos_err={pos_err:.6f}, rot_err={rot_err:.6f}, msg={msg}'
+
+        except Exception as e:
+            return None, f'Continuous IK exception: {e}'
+
+
+    def generate_joint_path_trajectory(self, joint_path, t_offset=0.0):
+        """
+        Generate one continuous cubic-time trajectory along a joint-space polyline.
+        joint_path: list of joint vectors, e.g. [q0, q1, q2, ...]
+        Returns trajectory, T_total.
+        """
+        if len(joint_path) < 2:
+            raise RuntimeError("joint_path must contain at least two points")
+
+        joint_path = [np.array(q, dtype=float) for q in joint_path]
+
+        # Total joint-space path length per joint; use max total displacement for timing
+        total_abs_dq = np.zeros(6)
+        for i in range(len(joint_path) - 1):
+            total_abs_dq += np.abs(joint_path[i + 1] - joint_path[i])
+
+        times_needed = []
+        for i in range(6):
+            vmax = self.joint_vel_limits[i]
+            times_needed.append(total_abs_dq[i] / vmax if vmax > 1e-6 else 0.0)
+
+        T_total = max(times_needed)
+        T_total = max(2.0, min(T_total, 12.0))
+
+        total_steps = min(max(int(np.ceil(T_total / self.dt)), 5), 240)
+
+        # Build cumulative path length in joint space
+        seg_lengths = []
+        cumulative = [0.0]
+
+        for i in range(len(joint_path) - 1):
+            length = float(np.linalg.norm(joint_path[i + 1] - joint_path[i]))
+            seg_lengths.append(length)
+            cumulative.append(cumulative[-1] + length)
+
+        total_length = cumulative[-1]
+
+        trajectory = []
+
+        for step in range(total_steps + 1):
+            t_local = T_total * step / total_steps
+            u = t_local / T_total if T_total > 1e-9 else 1.0
+
+            # Smooth cubic time scaling
+            s_ratio = 3.0 * u**2 - 2.0 * u**3
+
+            if total_length < 1e-9:
+                q = joint_path[-1].copy()
+            else:
+                s = s_ratio * total_length
+
+                seg_idx = 0
+                while seg_idx < len(seg_lengths) - 1 and cumulative[seg_idx + 1] < s:
+                    seg_idx += 1
+
+                seg_start = cumulative[seg_idx]
+                seg_len = seg_lengths[seg_idx]
+
+                if seg_len < 1e-9:
+                    alpha = 0.0
+                else:
+                    alpha = (s - seg_start) / seg_len
+
+                q = (1.0 - alpha) * joint_path[seg_idx] + alpha * joint_path[seg_idx + 1]
+
+            trajectory.append({
+                't': float(t_offset + t_local),
+                'q': [float(v) for v in q],
+                'qd': [0.0] * 6,
+                'qdd': [0.0] * 6
+            })
+
+        return trajectory, T_total
+
+
+    def generate_r_motion_v2(self, current_joints, target_pose, t_offset=0.0):
+        """
+        R motion: one continuous joint-space motion.
+        """
+        target_joints, msg = self.solve_pose_to_joint_target_seed(
+            target_pose['x'], target_pose['y'], target_pose['z'],
+            target_pose['roll'], target_pose['pitch'], target_pose['yaw'],
+            current_joints
+        )
+
+        if target_joints is None:
+            raise RuntimeError(f"R motion IK failed: {msg}")
+
+        traj, T_total = self.generate_joint_path_trajectory(
+            [current_joints, target_joints],
+            t_offset=t_offset
+        )
+
+        return traj, target_joints.copy(), t_offset + T_total
+
+
+    def generate_l_motion_single_segment(self, start_pose, goal_pose, current_joints, t_offset=0.0):
+        """
+        L motion: Cartesian linear interpolation + IK for all points,
+        then one single continuous joint trajectory.
+        If any intermediate point fails, the whole L motion fails.
+        """
+        num_steps = goal_pose.get('num_steps', 50)
+        pose_points = self.generate_linear_pose_waypoints(
+            start_pose,
+            goal_pose,
+            num_steps=num_steps
+        )
+
+        joint_path = [list(current_joints)]
+        q_seed = list(current_joints)
+
+        # skip pose_points[0], because it is the start pose and should match current_joints
+        for idx, pose in enumerate(pose_points[1:], start=1):
+            q_sol, msg = self.solve_pose_to_joint_target_seed(
+                pose['x'], pose['y'], pose['z'],
+                pose['roll'], pose['pitch'], pose['yaw'],
+                q_seed
+            )
+
+            if q_sol is None:
+                raise RuntimeError(
+                    f"L motion failed at interpolation point {idx}/{num_steps}: {msg}"
+                )
+
+            joint_jump = [abs(q_sol[i] - q_seed[i]) for i in range(6)]
+            max_joint_jump = max(joint_jump)
+
+            if max_joint_jump > 0.8:
+                raise RuntimeError(
+                    f"L motion IK branch jump at point {idx}/{num_steps}: "
+                    f"max_joint_jump={max_joint_jump:.3f} rad, "
+                    f"joint_jump={joint_jump}"
+                )
+
+            joint_path.append(q_sol)
+            q_seed = q_sol
+
+        traj, T_total = self.generate_joint_path_trajectory(
+            joint_path,
+            t_offset=t_offset
+        )
+
+        final_joints = joint_path[-1]
+        return traj, final_joints.copy(), t_offset + T_total
+    
     def generate_r_motion(self, current_joints, target_pose):
         """
         R-motion: cubic trajectory from current_joints to target_pose
@@ -492,11 +711,11 @@ class RobotTaskManager(Node):
 
         return traj_full, current_joints, t_offset
 
-
     def generate_full_sequence_trajectory(self, waypoint_list):
         """
-        Generate full joint trajectory for a sequence of waypoints (R/L/Joint)
-        Ensures continuous joints and cumulative time
+        Generate full joint trajectory for a sequence of R/L/Joint waypoints.
+        R: joint-space motion.
+        L: Cartesian straight-line motion, solved as one continuous segment.
         """
         full_trajectory = []
         current_joints = self.current_joints_state.copy()
@@ -510,46 +729,65 @@ class RobotTaskManager(Node):
                 motion = wp.get('motion', 'R').upper()
 
                 if motion == 'R':
-                    traj, T_total, current_joints = self.generate_r_motion(current_joints, wp)
-                    # 累加时间
-                    for pt in traj:
-                        pt['t'] += t_offset
-                    t_offset += T_total
-                    full_trajectory.extend(traj)
-                    previous_pose_wp = wp.copy()
+                    traj, current_joints, t_offset = self.generate_r_motion_v2(
+                        current_joints,
+                        wp,
+                        t_offset
+                    )
 
                 elif motion == 'L':
                     if previous_pose_wp is None:
-                        raise RuntimeError(f"L motion at waypoint {idx} has no previous pose.")
-                    traj, current_joints, t_offset = self.generate_l_motion(previous_pose_wp, wp, current_joints, t_offset)
-                    full_trajectory.extend(traj)
-                    previous_pose_wp = wp.copy()
+                        raise RuntimeError(
+                            f"L motion at waypoint {idx} has no previous pose waypoint"
+                        )
+
+                    traj, current_joints, t_offset = self.generate_l_motion_single_segment(
+                        previous_pose_wp,
+                        wp,
+                        current_joints,
+                        t_offset
+                    )
 
                 else:
                     raise RuntimeError(f"Unknown motion type '{motion}' at waypoint {idx}")
 
+                # Avoid duplicate time/sample at segment boundary
+                if full_trajectory and traj:
+                    full_trajectory.extend(traj[1:])
+                else:
+                    full_trajectory.extend(traj)
+
+                previous_pose_wp = wp.copy()
+
             elif wp_type == 'joint':
                 target_joints = wp['joints']
-                traj, T_total, _ = self.generate_cubic_joint_trajectory(current_joints, target_joints)
-                # 累加时间
-                for pt in traj:
-                    pt['t'] += t_offset
+
+                traj, T_total = self.generate_joint_path_trajectory(
+                    [current_joints, target_joints],
+                    t_offset=t_offset
+                )
+
                 t_offset += T_total
-                full_trajectory.extend(traj)
+
+                if full_trajectory and traj:
+                    full_trajectory.extend(traj[1:])
+                else:
+                    full_trajectory.extend(traj)
+
                 current_joints = target_joints.copy()
                 previous_pose_wp = None
 
             else:
                 raise RuntimeError(f"Unknown waypoint type '{wp_type}' at index {idx}")
 
-        # 写 CSV
-        self.export_trajectory_to_csv(full_trajectory)
-
-        # 更新末尾关节状态
         if full_trajectory:
+            self.export_trajectory_to_csv(full_trajectory)
             self.current_joints_state = full_trajectory[-1]['q'].copy()
 
-        self.get_logger().info(f"Full trajectory generated: {len(full_trajectory)} points. CSV saved.")
+        self.get_logger().info(
+            f"Full trajectory generated: {len(full_trajectory)} points. CSV saved."
+        )
+
         return full_trajectory
         
     def execute_linear_pose_motion_trajectory(self, start_pose, goal_pose, current_joints, t_offset=0.0):

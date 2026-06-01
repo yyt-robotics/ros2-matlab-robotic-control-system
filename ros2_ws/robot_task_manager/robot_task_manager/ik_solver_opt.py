@@ -206,6 +206,30 @@ class Gluon6L3IKLS:
 
         return q_sol, str(result.message), pos_err_norm, rot_err_norm
 
+    def solve_continuous(self,
+                         x: float, y: float, z: float,
+                         roll: float, pitch: float, yaw: float,
+                         q_init: np.ndarray) -> tuple[bool, np.ndarray, str, float, float]:
+        """
+        Continuous IK mode for Cartesian L motion.
+
+        This mode only uses the previous joint solution as the initial guess.
+        It avoids multi-start branch switching during linear Cartesian motion.
+        """
+        q_seed = np.array(q_init, dtype=float)
+
+        q_sol, msg, pos_err_norm, rot_err_norm = self.solve_once(
+            x, y, z, roll, pitch, yaw,
+            q_init=q_seed
+        )
+
+        if np.any(q_sol < self.lower) or np.any(q_sol > self.upper):
+            return False, q_sol, "IK returned joints outside limits", pos_err_norm, rot_err_norm
+
+        success = (pos_err_norm < 2e-2) and (rot_err_norm < 0.1)
+
+        return success, q_sol, msg, pos_err_norm, rot_err_norm
+
     def solve(self,
               x: float, y: float, z: float,
               roll: float, pitch: float, yaw: float,
