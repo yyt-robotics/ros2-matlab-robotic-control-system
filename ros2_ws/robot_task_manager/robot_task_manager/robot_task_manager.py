@@ -18,6 +18,13 @@ from .ik_solver_opt import Gluon6L3IKLS
 
 
 class RobotTaskManager(Node):
+    """
+    ROS2 action server for robotic task execution.
+
+    This node receives Cartesian pose goals or waypoint sequences,
+    solves inverse kinematics, generates joint-space trajectories,
+    publishes joint references, and exports offline trajectory CSV files.
+    """
     def __init__(self):
         super().__init__('robot_task_manager')
 
@@ -25,52 +32,8 @@ class RobotTaskManager(Node):
 
         # Current joint state used as the start point for the next trajectory
         self.current_joints_state = [0.0] * 6
-aaa@aaa-MS-7D48:~/ros2_ws/src/robot_task_manager/robot_task_manager$ cd ~/projects/ros2-matlab-robotic-control-system/ros2_ws/robot_task_manager/robot_task_manager
 
-
-
-grep -n "^ *def " robot_task_manager.py
-
-21:    def __init__(self):
-
-94:    def make_result(self, success, final_joints, message):
-
-101:    def publish_status(self):
-
-106:    def cancel_callback(self, goal_handle):
-
-110:    def publish_joint_ref(self, joints):
-
-115:    def call_python_ik(self, x, y, z, roll, pitch, yaw):
-
-145:    def solve_pose_to_joint_target(self, x, y, z, roll, pitch, yaw):
-
-155:    def is_pose_in_workspace(self, x, y, z):
-
-174:    def compute_trajectory_timing(self, start_joints, goal_joints):
-
-197:    def generate_cubic_joint_trajectory(self, start_joints, goal_joints):
-
-242:    def generate_linear_pose_waypoints(self, start_pose, goal_pose, num_steps=20):
-
-261:    def execute_trajectory(self, goal_handle, trajectory, verbose=True):
-
-290:    def execute_callback(self, goal_handle):
-
-358:    def solve_pose_to_joint_target_seed(self, x, y, z, roll, pitch, yaw, q_seed):
-
-394:    def generate_joint_path_trajectory(self, joint_path, t_offset=0.0):
-
-469:    def generate_r_motion_v2(self, current_joints, target_pose, t_offset=0.0):
-
-490:    def generate_l_motion_single_segment(self, start_pose, goal_pose, current_joints, t_offset=0.0):
-
-540:    def generate_full_sequence_trajectory(self, waypoint_list):
-
-619:    def export_trajectory_to_csv(self, trajectory, filename=None):
-
-633:def main(args=None):
-        # Waypoint container for future sequence execution
+        # Internal waypoint buffer reserved for future direct node-side sequence handling
         self.waypoints = []
 
         # Joint velocity limits (rad/s)
@@ -136,6 +99,9 @@ grep -n "^ *def " robot_task_manager.py
         self.get_logger().info(f'Offline trajectory CSV path: {self.trajectory_file}')
 
     def make_result(self, success, final_joints, message):
+        """
+        Create a MoveToPose action result message.
+        """
         result = MoveToPose.Result()
         result.success = bool(success)
         result.final_joints = [float(q) for q in final_joints]
@@ -143,20 +109,36 @@ grep -n "^ *def " robot_task_manager.py
         return result
     
     def publish_status(self):
+        """
+        Publish the current robot task status.
+        """
         msg = String()
         msg.data = self.robot_status
         self.status_publisher.publish(msg)
 
     def cancel_callback(self, goal_handle):
+        """
+        Accept incoming action cancel requests.
+        """
         self.get_logger().info('Received cancel request')
         return CancelResponse.ACCEPT
 
     def publish_joint_ref(self, joints):
+        """
+        Publish the current joint reference to the /joint_ref topic.
+        """
         msg = Float64MultiArray()
         msg.data = [float(q) for q in joints]
         self.joint_ref_publisher.publish(msg)
     
     def call_python_ik(self, x, y, z, roll, pitch, yaw):
+        """
+        Solve IK using the multi-start IK solver.
+
+        This function is mainly kept for general pose solving and
+        legacy trajectory experiments. The continuous L-motion pipeline
+        uses solve_pose_to_joint_target_seed() instead.
+        """
         try:
             success, q_sol, msg, pos_err, rot_err = self.ik_solver.solve(
                 x, y, z, roll, pitch, yaw,
@@ -178,15 +160,22 @@ grep -n "^ *def " robot_task_manager.py
                 return q_sol.tolist()
             else:
                 self.get_logger().error(
-                    f'Python IK failed. pos_err={pos_err:.6f}, rot_err={rot_err:.6f}, msg={msg}'
+                    f'IK failed. pos_err={pos_err:.6f}, rot_err={rot_err:.6f}, msg={msg}'
                 )
                 return None
 
         except Exception as e:
-            self.get_logger().error(f'Python IK exception: {e}')
+            self.get_logger().error(f'IK exception: {e}')
             return None
 
     def solve_pose_to_joint_target(self, x, y, z, roll, pitch, yaw):
+        """
+        Solve a Cartesian pose into a joint target using multi-start IK.
+
+        This is a general pose-solving helper. The main waypoint sequence
+        pipeline uses solve_pose_to_joint_target_seed() for better IK
+        continuity during Cartesian L-motion.
+        """
         if not self.is_pose_in_workspace(x, y, z):
             return None, 'Target unreachable: outside workspace'
 
@@ -197,6 +186,12 @@ grep -n "^ *def " robot_task_manager.py
         return target_joints, 'OK'
 
     def is_pose_in_workspace(self, x, y, z):
+        """
+        Check whether a Cartesian pose is inside the coarse workspace bounds.
+
+        The current bounds are conservative engineering limits rather than
+        a fully sampled or analytically derived workspace.
+        """
         # Coarse workspace constraint for engineering use
         r = (x**2 + y**2 + z**2) ** 0.5
 
@@ -217,10 +212,11 @@ grep -n "^ *def " robot_task_manager.py
 
     def compute_trajectory_timing(self, start_joints, goal_joints):
         """
-	Legacy function.
-	Kept for future trajectory experiments.
-	Currently not used by the main pipeline.
-	"""
+        Legacy timing helper for direct cubic joint interpolation.
+
+        This function is kept for future trajectory experiments.
+        It is not used by the current v1.1 waypoint sequence pipeline.
+        """
         dq = [abs(goal_joints[i] - start_joints[i]) for i in range(6)]
 
         times_needed = []
@@ -245,11 +241,12 @@ grep -n "^ *def " robot_task_manager.py
 
     def generate_cubic_joint_trajectory(self, start_joints, goal_joints):
         """
-	Legacy function.
+        Legacy cubic joint trajectory generator.
 
-	Kept for future trajectory experiments.
-	Currently not used by the main pipeline.
-	"""
+        This function generates a direct cubic trajectory from one joint
+        configuration to another. It is kept for future trajectory experiments
+        and is not used by the current v1.1 waypoint sequence pipeline.
+        """
         T_total, total_steps = self.compute_trajectory_timing(start_joints, goal_joints)
         dt = self.dt
 
@@ -295,6 +292,17 @@ grep -n "^ *def " robot_task_manager.py
         return trajectory, T_total, total_steps
 
     def generate_linear_pose_waypoints(self, start_pose, goal_pose, num_steps=20):
+        """
+        Generate linearly interpolated Cartesian pose waypoints.
+
+        Args:
+            start_pose: Starting Cartesian pose dictionary.
+            goal_pose: Target Cartesian pose dictionary.
+            num_steps: Number of interpolation intervals.
+
+        Returns:
+            A list of Cartesian pose dictionaries.
+        """
         pose_points = []
 
         for step in range(num_steps + 1):
@@ -314,6 +322,13 @@ grep -n "^ *def " robot_task_manager.py
         return pose_points
 
     def execute_trajectory(self, goal_handle, trajectory, verbose=True):
+        """
+        Publish a trajectory sample by sample through /joint_ref.
+
+        This function is mainly used by real-time execution experiments.
+        The offline sequence mode primarily exports the generated trajectory
+        to CSV for MATLAB/Simulink replay.
+        """
         feedback_msg = MoveToPose.Feedback()
         feedback_msg.total_steps = len(trajectory) - 1
         current_joints = self.current_joints_state.copy()
@@ -343,6 +358,13 @@ grep -n "^ *def " robot_task_manager.py
         return True, self.current_joints_state.copy(), 'Trajectory executed successfully'
 
     def execute_callback(self, goal_handle):
+        """
+        Handle MoveToPose action requests.
+
+        Supports two modes:
+        1. Waypoint sequence: JSON array of pose waypoints.
+        2. Single-goal: Cartesian pose with x, y, z, roll, pitch, yaw fields.
+        """
         self.robot_status = 'busy'
 
        	# Case 1: Waypoint sequence execution
@@ -414,8 +436,9 @@ grep -n "^ *def " robot_task_manager.py
         """
         Solve IK with a specified seed joint state.
 
-        This function uses continuous IK mode and is mainly intended for L motion.
-        It avoids multi-start IK branch switching.
+        This function uses the continuous IK mode and is mainly intended
+        for Cartesian L-motion. By using the previous joint solution as
+        the optimization seed, it reduces IK branch switching and wrist flips.
         """
         if not self.is_pose_in_workspace(x, y, z):
             return None, 'Target unreachable: outside workspace'
@@ -447,29 +470,27 @@ grep -n "^ *def " robot_task_manager.py
 
 
     def generate_joint_path_trajectory(self, joint_path, t_offset=0.0):
-	"""
-	Generate a continuous trajectory along a joint-space path.
+        """
+        Generate a continuous trajectory along a joint-space path.
 
-	Args:
-	    joint_path:
-		List of joint vectors.
+        The input joint path may contain two or more joint configurations.
+        A cubic time-scaling function is used to move along the path smoothly,
+        while the global trajectory time is shifted by t_offset.
 
-	    t_offset:
-		Global trajectory time offset.
+        Args:
+            joint_path: List of joint vectors.
+            t_offset: Global time offset for trajectory concatenation.
 
-	Returns:
-	    trajectory:
-		Generated trajectory samples.
-
-	    T_total:
-		Total trajectory duration.
-	"""
+        Returns:
+            trajectory: List of trajectory samples.
+            T_total: Total duration of this trajectory segment.
+        """
         if len(joint_path) < 2:
             raise RuntimeError("joint_path must contain at least two points")
 
         joint_path = [np.array(q, dtype=float) for q in joint_path]
 
-        # Total joint-space path length per joint; use max total displacement for timing
+        # Compute cumulative path length per joint and determine max displacement for timing
         total_abs_dq = np.zeros(6)
         for i in range(len(joint_path) - 1):
             total_abs_dq += np.abs(joint_path[i + 1] - joint_path[i])
@@ -535,7 +556,10 @@ grep -n "^ *def " robot_task_manager.py
 
     def generate_r_motion_v2(self, current_joints, target_pose, t_offset=0.0):
         """
-        R motion: one continuous joint-space motion.
+        Generate an R-motion segment.
+
+        R-motion is defined as a joint-space motion from the current joint
+        configuration to the IK solution of the target Cartesian pose.
         """
         target_joints, msg = self.solve_pose_to_joint_target_seed(
             target_pose['x'], target_pose['y'], target_pose['z'],
@@ -556,9 +580,15 @@ grep -n "^ *def " robot_task_manager.py
 
     def generate_l_motion_single_segment(self, start_pose, goal_pose, current_joints, t_offset=0.0):
         """
-        L motion: Cartesian linear interpolation + IK for all points,
-        then one single continuous joint trajectory.
-        If any intermediate point fails, the whole L motion fails.
+        Generate an L-motion segment as one continuous trajectory.
+
+        L-motion is defined as Cartesian straight-line motion between two
+        poses. The Cartesian path is first interpolated, then each pose is
+        solved using continuous IK, and finally the resulting joint path is
+        time-parameterized as a single trajectory segment.
+
+        If any intermediate IK solution fails or shows a large branch jump,
+        the entire L-motion segment is rejected.
         """
         num_steps = goal_pose.get('num_steps', 50)
         pose_points = self.generate_linear_pose_waypoints(
@@ -570,8 +600,7 @@ grep -n "^ *def " robot_task_manager.py
         joint_path = [list(current_joints)]
         q_seed = list(current_joints)
 
-	# Skip the first interpolated pose because it corresponds
-	# to the current robot configuration.
+        # Skip the first interpolated pose because it corresponds to the current configuration.
         for idx, pose in enumerate(pose_points[1:], start=1):
             q_sol, msg = self.solve_pose_to_joint_target_seed(
                 pose['x'], pose['y'], pose['z'],
@@ -607,9 +636,15 @@ grep -n "^ *def " robot_task_manager.py
 
     def generate_full_sequence_trajectory(self, waypoint_list):
         """
-        Generate full joint trajectory for a sequence of R/L/Joint waypoints.
-        R: joint-space motion.
-        L: Cartesian straight-line motion, solved as one continuous segment.
+        Generate a full trajectory for a sequence of waypoints.
+
+        Supported waypoint types:
+        - pose with R motion: joint-space motion to the target pose
+        - pose with L motion: Cartesian straight-line motion from the previous pose
+        - joint: direct joint-space motion to the target joint configuration
+
+        The generated segments are concatenated with continuous global time
+        and exported as a single trajectory CSV.
         """
         full_trajectory = []
         current_joints = self.current_joints_state.copy()
@@ -685,6 +720,11 @@ grep -n "^ *def " robot_task_manager.py
         return full_trajectory
 
     def export_trajectory_to_csv(self, trajectory, filename=None):
+        """
+        Export a generated joint trajectory to a CSV file.
+
+        The CSV file is used by MATLAB/Simulink for offline trajectory replay.
+        """
         if filename is None:
             filename = os.path.expanduser(
                 '~/ros2_project_data/matlab/trajectory/trajectory_log_6dof.csv'
@@ -694,11 +734,14 @@ grep -n "^ *def " robot_task_manager.py
         with open(filename, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             # Write CSV header
-            writer.writerow(['time','q1_ref','q2_ref','q3_ref','q4_ref','q5_ref','q6_ref'])
+            writer.writerow(['time', 'q1_ref', 'q2_ref', 'q3_ref', 'q4_ref', 'q5_ref', 'q6_ref'])
             for pt in trajectory:
                 writer.writerow([pt['t'], *pt['q']])
 
 def main(args=None):
+    """
+    Start the RobotTaskManager node with a multi-threaded executor.
+    """
     rclpy.init(args=args)
     node = RobotTaskManager()
 

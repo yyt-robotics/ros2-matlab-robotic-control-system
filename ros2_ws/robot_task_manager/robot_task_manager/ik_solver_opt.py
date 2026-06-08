@@ -1,6 +1,9 @@
 """
 Numerical inverse kinematics solver for the Gluon 6L3 manipulator
 using constrained nonlinear least-squares optimization.
+
+Provides multi-start IK for general poses (R-motion) and
+continuous IK for Cartesian L-motion.
 """
 
 import math
@@ -9,6 +12,9 @@ from scipy.optimize import least_squares
 
 
 def rot_x(alpha: float) -> np.ndarray:
+    """
+    Generate 3x3 rotation matrix around X-axis by angle alpha (rad).
+    """
     c = math.cos(alpha)
     s = math.sin(alpha)
     return np.array([
@@ -17,7 +23,11 @@ def rot_x(alpha: float) -> np.ndarray:
         [0, s, c]
     ], dtype=float)
 
+
 def rot_y(beta: float) -> np.ndarray:
+    """
+    Generate 3x3 rotation matrix around Y-axis by angle beta (rad).
+    """
     c = math.cos(beta)
     s = math.sin(beta)
     return np.array([
@@ -28,6 +38,9 @@ def rot_y(beta: float) -> np.ndarray:
 
 
 def rot_z(theta: float) -> np.ndarray:
+    """
+    Generate 3x3 rotation matrix around Z-axis by angle theta (rad).
+    """
     c = math.cos(theta)
     s = math.sin(theta)
     return np.array([
@@ -37,8 +50,24 @@ def rot_z(theta: float) -> np.ndarray:
     ], dtype=float)
 
 
-def pose_to_transform(x: float, y: float, z: float,
-                      roll: float, pitch: float, yaw: float) -> np.ndarray:
+def pose_to_transform(
+    x: float,
+    y: float,
+    z: float,
+    roll: float,
+    pitch: float,
+    yaw: float
+) -> np.ndarray:
+    """
+    Convert Cartesian pose to 4x4 homogeneous transformation matrix.
+
+    Args:
+        x, y, z: Cartesian position (m)
+        roll, pitch, yaw: Euler angles (rad)
+
+    Returns:
+        4x4 transformation matrix
+    """
     R = rot_z(yaw) @ rot_y(pitch) @ rot_x(roll)
     T = np.eye(4, dtype=float)
     T[:3, :3] = R
@@ -47,7 +76,15 @@ def pose_to_transform(x: float, y: float, z: float,
 
 
 class Gluon6L3IKLS:
+    """
+    Inverse kinematics solver class for Gluon 6L3.
+
+    Attributes:
+        d, a, alpha, offset: DH parameters
+        lower, upper: Joint limits in radians
+    """
     def __init__(self):
+
         self.d = np.array([105.03, 0.0, 0.0, 75.66, 80.09, 44.36], dtype=float) / 1000.0
         self.a = np.array([0.0, -174.42, -174.42, 0.0, 0.0, 0.0], dtype=float) / 1000.0
         self.alpha = np.array([math.pi / 2, 0.0, 0.0, math.pi / 2, -math.pi / 2, 0.0], dtype=float)
@@ -72,6 +109,15 @@ class Gluon6L3IKLS:
         ], dtype=float)
 
     def candidate_initial_guesses(self, q_init: np.ndarray | None = None):
+        """
+        Provide multiple candidate initial joint states for multi-start IK.
+
+        Args:
+            q_init: Optional starting joint configuration
+
+        Returns:
+            List of candidate 6D joint vectors
+        """
         guesses = []
 
         if q_init is not None:
@@ -90,6 +136,9 @@ class Gluon6L3IKLS:
         return guesses
 
     def joint_limit_cost(self, q: np.ndarray) -> float:
+        """
+        Compute a normalized joint-limit cost for one joint configuration.
+        """
         q_mid = 0.5 * (self.lower + self.upper)
         q_half = 0.5 * (self.upper - self.lower)
 
@@ -97,6 +146,9 @@ class Gluon6L3IKLS:
         return float(np.sum(normalized ** 2))
     
     def dh_transform(self, theta: float, d: float, a: float, alpha: float) -> np.ndarray:
+        """
+        Compute a single 4x4 DH transformation matrix.
+        """
         ct = math.cos(theta)
         st = math.sin(theta)
         ca = math.cos(alpha)
@@ -110,6 +162,9 @@ class Gluon6L3IKLS:
         ], dtype=float)
 
     def fk(self, q: np.ndarray) -> np.ndarray:
+        """
+        Compute forward kinematics for a given 6D joint vector.
+        """
         T = np.eye(4, dtype=float)
         for i in range(6):
             theta = q[i] + self.offset[i]
@@ -117,13 +172,25 @@ class Gluon6L3IKLS:
         return T
 
     def position_residual(self, q: np.ndarray, p_target: np.ndarray, w_pos: float = 1.0) -> np.ndarray:
+        """
+        Position-only residual for least-squares optimization.
+        """
         T_current = self.fk(q)
         p_current = T_current[:3, 3]
         dp = p_target - p_current
         return w_pos * dp
 
-    def pose_residual(self, q: np.ndarray, T_target: np.ndarray,
-        w_pos: float = 5.0, w_rot: float = 0.05) -> np.ndarray:
+    def pose_residual(
+        self,
+        q: np.ndarray,
+        T_target: np.ndarray,
+        w_pos: float = 5.0,
+        w_rot: float = 0.05
+    ) -> np.ndarray:
+        """
+        Full pose residual (position + rotation + joint limit penalty)
+        for least-squares IK.
+        """
         T_current = self.fk(q)
 
         p_current = T_current[:3, 3]
@@ -147,6 +214,7 @@ class Gluon6L3IKLS:
 
     def solve_position_only(self, x: float, y: float, z: float,
                             q_init: np.ndarray | None = None) -> np.ndarray:
+        """Solve position-only IK using least-squares."""
         p_target = np.array([x, y, z], dtype=float)
 
         if q_init is None:
@@ -171,12 +239,23 @@ class Gluon6L3IKLS:
                    x: float, y: float, z: float,
                    roll: float, pitch: float, yaw: float,
                    q_init: np.ndarray | None = None) -> tuple[np.ndarray, str, float, float]:
+        """
+        Solve full Cartesian pose using two-stage least-squares:
+        1. Position-only
+        2. Weak orientation refinement
+
+        Returns:
+            q_sol: joint solution
+            msg: solver message
+            pos_err_norm: position error norm
+            rot_err_norm: rotation error norm
+        """
         T_target = pose_to_transform(x, y, z, roll, pitch, yaw)
 
-        # stage 1: position only
+        # Stage 1: position-only IK
         q_stage1 = self.solve_position_only(x, y, z, q_init=q_init)
 
-        # stage 2: weak orientation refinement
+        # Stage 2: weak orientation refinement
         result = least_squares(
             fun=lambda q: self.pose_residual(q, T_target, w_pos=5.0, w_rot=0.05),
             x0=q_stage1,
@@ -211,10 +290,17 @@ class Gluon6L3IKLS:
                          roll: float, pitch: float, yaw: float,
                          q_init: np.ndarray) -> tuple[bool, np.ndarray, str, float, float]:
         """
-        Continuous IK mode for Cartesian L motion.
+        Continuous IK for L-motion.
 
-        This mode only uses the previous joint solution as the initial guess.
-        It avoids multi-start branch switching during linear Cartesian motion.
+        Only uses previous joint solution as initial guess (q_seed)
+        to avoid branch switching during straight-line Cartesian motion.
+
+        Returns:
+            success: True if IK converged
+            q_sol: 6D joint vector
+            msg: solver message
+            pos_err_norm: position error norm
+            rot_err_norm: rotation error norm
         """
         q_seed = np.array(q_init, dtype=float)
 
@@ -234,6 +320,24 @@ class Gluon6L3IKLS:
               x: float, y: float, z: float,
               roll: float, pitch: float, yaw: float,
               q_init: np.ndarray | None = None) -> tuple[bool, np.ndarray, str, float, float]:
+        """
+        Multi-start IK solver for a full Cartesian pose.
+
+        This function tries multiple initial guesses to find the best joint solution.
+        It evaluates candidates based on position error, rotation error, and joint limits.
+
+        Args:
+            x, y, z: Cartesian position
+            roll, pitch, yaw: Euler angles (radians)
+            q_init: optional seed for multi-start IK
+
+        Returns:
+            success: True if the best candidate satisfies error thresholds
+            q_sol: 6D joint solution
+            msg: solver message from least_squares
+            pos_err_norm: final position error norm
+            rot_err_norm: final rotation error norm
+        """
 
         candidates = []
 
@@ -259,18 +363,15 @@ class Gluon6L3IKLS:
         if not candidates:
             return False, np.zeros(6), "All IK attempts failed", float('inf'), float('inf')
 
-        # 先筛掉位置太差的
         good_pos_candidates = [c for c in candidates if c["pos_err"] < 2e-2]
 
         if good_pos_candidates:
-            # 在位置合格的前提下，综合比较姿态和限位
             best = min(
                 good_pos_candidates,
                 key=lambda c: (c["rot_err"] / 0.1) ** 2 + 0.05 * c["limit_cost"]
             )
             success = best["rot_err"] < 0.1
         else:
-            # 没有位置合格的，就选位置最好的
             best = min(candidates, key=lambda c: c["pos_err"])
             success = False
 
@@ -283,13 +384,18 @@ class Gluon6L3IKLS:
         at_upper = np.isclose(q_sol, self.upper, atol=1e-3)
 
         if np.any(at_lower) or np.any(at_upper):
-            print("Warning: IK solution is close to joint limits.")
-            print("at_lower:", at_lower.tolist())
-            print("at_upper:", at_upper.tolist())
+            self.get_logger().warning("IK solution is close to joint limits.")
+            self.get_logger().debug(f"at_lower={at_lower.tolist()}, at_upper={at_upper.tolist()}")
 
         return success, q_sol, msg, pos_err_norm, rot_err_norm
 
 if __name__ == "__main__":
+    """
+    Standalone test for Gluon6L3IKLS solver.
+
+    Runs three test poses with initial guesses to verify both
+    multi-start IK (R-motion) and continuous IK (L-motion).
+    """
     solver = Gluon6L3IKLS()
 
     tests = [
