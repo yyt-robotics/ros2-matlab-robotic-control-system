@@ -32,7 +32,7 @@ The system supports both real-time control and offline trajectory simulation:
 Click the thumbnails to watch full demo videos:
 
 ### Version 1.1 — Continuous Motion Upgrade (Latest)
-[![V1.1 Demo](https://img.youtube.com/vi/eta8x4RhPA/0.jpg)](https://youtu.be/eta8x4RhPA)
+[![V1.1 Demo](https://img.youtube.com/vi/-eta8x4RhPA/0.jpg)](https://youtu.be/-eta8x4RhPA)
 
 ### Version 1.0 — Offline Mode (Trajectory Generation + MATLAB Simulation)
 [![Offline Demo](https://img.youtube.com/vi/54vFBiX_kls/0.jpg)](https://youtu.be/54vFBiX_kls)
