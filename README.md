@@ -5,6 +5,24 @@
 
 A ROS2-based robotic control system that bridges high-level task planning and low-level joint control, with real-time MATLAB/Simulink integration.
 
+# Version 1.1 Motion Upgrade
+
+New Features
+
+- Continuous Cartesian L-motion
+- Seed-based IK continuity
+- Mixed R/L waypoint execution
+- Full sequence trajectory generation
+- Improved MATLAB tracking performance
+
+### Tracking Performance
+
+![Tracking V1.1](media/tracking_v1.1.png)
+
+### Joint Error
+
+![Error V1.1](media/error_v1.1.png)
+
 ## Demo (Real-Time + Offline)
 
 The system supports both real-time control and offline trajectory simulation:
