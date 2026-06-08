@@ -20,7 +20,7 @@ A ROS2-based robotic control system that bridges high-level task planning and lo
 ![Tracking V1.1](media/v1.1/tracking_v1.1.png)
 
 ### Joint Error
-![Error V1.1](media/v1.1/error_v1.0.png)
+![Error V1.1](media/v1.1/error_v1.1.png)
 
 ## Demo (Real-Time + Offline)
 
