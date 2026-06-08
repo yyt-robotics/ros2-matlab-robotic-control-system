@@ -1,4 +1,3 @@
-
 ![ROS2](https://img.shields.io/badge/ROS2-Jazzy-blue)
 ![MATLAB](https://img.shields.io/badge/MATLAB-Simulink-orange)
 ![Docker](https://img.shields.io/badge/Docker-Ready-blue)
@@ -18,10 +17,10 @@ A ROS2-based robotic control system that bridges high-level task planning and lo
 - Improved MATLAB tracking performance
 
 ### Tracking Performance
-![Tracking V1.1](media/v1.1/tracking.png)
+![Tracking V1.1](media/v1.1/tracking_v1.1.png)
 
 ### Joint Error
-![Error V1.1](media/v1.1/error.png)
+![Error V1.1](media/v1.1/error_v1.0.png)
 
 ## Demo (Real-Time + Offline)
 
@@ -101,9 +100,9 @@ The system operates in two modes: offline trajectory simulation and real-time co
 
 #### Simulation Result
 
-![Tracking](media/v1.0/tracking_v1.0.png)
+![Tracking](media/v1.0/tracking_v1.1.png)
 
-![Error](media/v1.0/error_v1.0.png)
+![Error](media/v1.0/error_v1.1.png)
 
 ### Real-Time Mode
 
@@ -116,6 +115,7 @@ The system operates in two modes: offline trajectory simulation and real-time co
 
 ## Project Structure
 
+```text
 .
 ├── matlab/
 │   ├── get_joint_ref_http.m
@@ -156,6 +156,7 @@ The system operates in two modes: offline trajectory simulation and real-time co
 ├── Dockerfile
 ├── README.md
 └── requirements.txt
+```
 
 ## How to Run
 
@@ -197,7 +198,7 @@ Old features and tracking results are preserved here:
 
 ### Tracking Performance
 
-![Tracking V1.0](media/v1.0/tracking.png)
+![Tracking V1.0](media/v1.0/tracking_v1.0.png)
 
 ### Joint Error
 
