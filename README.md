@@ -22,7 +22,7 @@ A ROS2-based robotic control system that bridges high-level task planning and lo
 ### Joint Error
 ![Error V1.1](media/v1.1/error_v1.1.png)
 
-## Demo (Real-Time + Offline)
+## Demo Videos
 
 The system supports both real-time control and offline trajectory simulation:
 
@@ -31,10 +31,13 @@ The system supports both real-time control and offline trajectory simulation:
 
 Click the thumbnails to watch full demo videos:
 
-### Offline Mode (Trajectory Generation + MATLAB Simulation)
+### Version 1.1 — Continuous Motion Upgrade (Latest)
+[![V1.1 Demo](https://img.youtube.com/vi/eta8x4RhPA/0.jpg)](https://youtu.be/eta8x4RhPA)
+
+### Version 1.0 — Offline Mode (Trajectory Generation + MATLAB Simulation)
 [![Offline Demo](https://img.youtube.com/vi/54vFBiX_kls/0.jpg)](https://youtu.be/54vFBiX_kls)
 
-### Real-Time Mode (ROS2 + Web GUI + MATLAB Integration)
+### Version 1.0 — Real-Time Mode (ROS2 + Web GUI + MATLAB Integration)
 [![Realtime Demo](https://img.youtube.com/vi/jeSNi3DXFD4/0.jpg)](https://youtu.be/jeSNi3DXFD4)
 
 ## Highlights
