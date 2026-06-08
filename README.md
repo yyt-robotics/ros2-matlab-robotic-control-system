@@ -20,7 +20,7 @@ A ROS2-based robotic control system that bridges high-level task planning and lo
 ![Tracking V1.1](media/v1.1/tracking_v1.1.png)
 
 ### Joint Error
-![Error V1.1](media/v1.1/error_v1.0.png)
+![Error V1.1](media/v1.1/error_v1.1.png)
 
 ## Demo (Real-Time + Offline)
 
@@ -100,9 +100,9 @@ The system operates in two modes: offline trajectory simulation and real-time co
 
 #### Simulation Result
 
-![Tracking](media/v1.0/tracking_v1.1.png)
+![Tracking](media/v1.1/tracking_v1.1.png)
 
-![Error](media/v1.0/error_v1.1.png)
+![Error](media/v1.1/error_v1.1.png)
 
 ### Real-Time Mode
 
@@ -149,8 +149,8 @@ The system operates in two modes: offline trajectory simulation and real-time co
 │   │   ├── tracking_v1.0.png
 │   │   └── error_v1.0.png
 │   └── v1.1/
-│       ├── tracking.png
-│       └── error.png
+│       ├── tracking_v1.1.png
+│       └── error_v1.1.png
 ├── .dockerignore
 ├── .gitignore
 ├── Dockerfile
@@ -203,6 +203,8 @@ Old features and tracking results are preserved here:
 ### Joint Error
 
 This version used discrete R-motion only, with limited L-motion support and less smooth trajectories.
+
+![Error V1.0](media/v1.0/error_v1.0.png)
 
 
 
