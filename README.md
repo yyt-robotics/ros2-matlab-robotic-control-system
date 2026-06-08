@@ -204,6 +204,7 @@ Old features and tracking results are preserved here:
 
 This version used discrete R-motion only, with limited L-motion support and less smooth trajectories.
 
+![Error V1.0](media/v1.0/error_v1.0.png)
 
 
 
